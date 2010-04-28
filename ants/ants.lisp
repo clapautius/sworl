@@ -1,8 +1,9 @@
+(in-package :sworl.ants)
 
 
 ;;; logging
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *ant-log-level* 5))
+  (defparameter *ant-log-level* 0))
 
 (defmacro ant-log (log-level &rest print-list)
   (if (<= log-level *ant-log-level*)
@@ -32,6 +33,10 @@
     :initform nil
     :accessor u-array)
 
+   (u-array-future
+    :initform nil
+    :accessor u-array-future)
+
    (u-time
     :initform 0
     :accessor u-time))
@@ -42,18 +47,23 @@
 (defmethod initialize-instance :after ((universe universe) &key)
   (setf (slot-value universe 'u-array) (make-array
                                         (list (size universe) (size universe))
-                                        :initial-element nil)))
+                                        :initial-element nil))
+  (setf (slot-value universe 'u-array-future)
+        (make-array (list (size universe) (size universe))
+                    :initial-element nil)))
 
 
-(defgeneric empty (universe x y)
+(defgeneric empty (universe x y future)
   (:documentation "Check if the space is empty at the specified coordinates"))
 
 
-(defmethod empty ((universe universe) x y)
-  (if (and (< x (size universe)) (< y (size universe)))
-      (let ((value (aref (u-array universe) x y)))
-        (null value))
-      nil))
+(defmethod empty ((universe universe) x y future)
+  (when (and (>= x 0) (>= y 0) (< x (size universe)) (< y (size universe)))
+    (return-from empty
+      (if future
+          (null (aref (u-array-future universe) x y))
+          (null (aref (u-array universe) x y)))))
+  nil)
 
 
 (defmethod print-object ((universe universe) stream)
@@ -110,7 +120,13 @@
       (unless (null (aref (u-array universe) x y))
         (passing-time universe (aref (u-array universe) x y)))))
   (incf (u-time universe))
-  (ant-log 2 "time has passed for universe; time is now " (u-time universe)))
+  (let ((old-array (u-array universe)))
+    (setf (u-array universe) (u-array-future universe))
+    (setf (u-array-future universe) old-array))
+    (dotimes (x (size universe))
+      (dotimes (y (size universe))
+        (setf (aref (u-array-future universe) x y) nil)))
+    (ant-log 2 "time has passed for universe; time is now " (u-time universe)))
 
 
 (defmethod passing-time ((universe universe) (ant ant))
@@ -124,24 +140,23 @@
          (y-new-int (round y-new)))
     (ant-log 4 "candidate positions for ant: " x-new "," y-new)
     ;; check free space
-    (if (empty universe x-new-int y-new-int)
+    (if (empty universe x-new-int y-new-int t)
         (progn
-          (setf (aref (u-array universe) (x ant) (y ant)) nil)
-          (setf (aref (u-array universe) x-new-int y-new-int) ant)
-          (setf (x ant) x-new-int)
-          (setf (y ant) y-new-int)
+          (setf (aref (u-array-future universe) x-new-int y-new-int) ant)
+          (setf (x ant) x-new)
+          (setf (y ant) y-new)
           (ant-log 2 "new position for ant: " (x ant) "," (y ant)))
         (ant-log 2 "ant is blocked"))))
 
 
 ;;; testing functions
-(defun generate-ants (number universe)
+(defun generate-ants (number universe &optional (random-direction nil))
   "Generate <number> ants and place them in the universe"
   (flet ((get-free-space (universe)
            "Find a free space in the universe (return multiple values)"
            (dotimes (x (size universe))
              (dotimes (y (size universe))
-               (if (empty universe x y)
+               (if (empty universe x y nil)
                    (progn
                      (ant-log 5 "found an empty spot at " x "," y)
                      (return-from get-free-space (values x y)))
@@ -153,9 +168,17 @@
           (get-free-space universe))
         (when (null x-empty)
           (error "Universe is full"))
-        (ant-log 3 "placing a new ant at " x-empty "," y-empty)
         (setf (aref (u-array universe) x-empty y-empty)
-              (make-instance 'ant :x x-empty :y y-empty))))))
+              (if random-direction
+                  (make-instance 'ant :x x-empty :y y-empty
+                                 :x-dir (random 10)
+                                 :y-dir (random 10))
+                  (make-instance 'ant :x x-empty :y y-empty)))
+        (ant-log 3 "placing a new ant at " x-empty "," y-empty)
+        (ant-log 3 "direction: "
+                 (x-dir (aref (u-array universe) x-empty y-empty))
+                 ","
+                 (y-dir (aref (u-array universe) x-empty y-empty)))))))
 
 
 (defun run (&key (size 10) (ants 1) (duration 100))
@@ -163,9 +186,20 @@
   (ant-log 0 "Run a simulation with " ants " ants in an universe of size " size)
   (ant-log 0 "Duration of the simulation: " duration)
   (let ((universe (make-instance 'universe :size size)))
-    (generate-ants ants universe)
+    (generate-ants ants universe t)
     (dotimes (i duration)
       (passing-time-universal universe)))
+  (ant-log 0 "It's the end of the world"))
+
+
+(defun run-opengl (&key (size 10) (ants 1) (duration 100))
+  "Run the simulation"
+  (ant-log 0 "Run a simulation with " ants " ants in an universe of size " size)
+  (ant-log 0 "Duration of the simulation: " duration)
+  (let ((universe (make-instance 'universe :size size)))
+    (generate-ants ants universe t)
+    (glut:display-window (make-instance 'u-window :width 800 :height 600
+                                        :universe universe)))
   (ant-log 0 "It's the end of the world"))
 
 
