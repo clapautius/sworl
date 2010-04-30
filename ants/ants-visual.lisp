@@ -22,11 +22,12 @@
 	(dotimes (y (size (universe w)))
 	  (unless (null (aref (u-array (universe w)) x y))
 		(gl:color 1 0 0)
-		(gl:with-primitive :polygon
+		(gl:with-primitive :points
 		  (gl:vertex x y)
-		  (gl:vertex (+ x 2) y)
-		  (gl:vertex (+ x 2) (+ y 2))
-		  (gl:vertex x (+ y 2))))))
+		  ;(gl:vertex (+ x 2) y)
+		  ;(gl:vertex (+ x 2) (+ y 2))
+		  ;(gl:vertex x (+ y 2))
+		  ))))
   (glut:swap-buffers))
 
 (defmethod glut:idle ((w u-window))
