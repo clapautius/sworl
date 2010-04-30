@@ -99,12 +99,28 @@
    (y-direction
     :initarg :y-dir
     :initform 1
-    :accessor y-dir))
+    :accessor y-dir)
+
+  ;; x-step & y-step are float values representing the exact value of a step on
+  ;; x and y axis
+  (x-step
+   :reader x-step)
+  (y-step
+   :reader y-step))
+
   (:documentation "Ant class"))
+
+
+;; initialize x-step & y-step
+;; :fixme: - these values should be computed again if x-direction or y-direction
+;; is modified
+(defmethod initialize-instance :after ((ant ant) &key)
+  (let* ((arctn (atan (y-dir ant) (x-dir ant))))
+    (setf (slot-value ant 'x-step) (cos arctn))
+    (setf (slot-value ant 'y-step) (sin arctn))))
 
 (defmethod print-object ((ant ant) stream)
   (format stream "ANT(~a,~a)" (x ant) (y ant)))
-
 
 
 ;;; passing-time multimethod
@@ -134,9 +150,8 @@
   (ant-log 2 "ant " ant " in action")
   ;; x-new = x + cos(arctan(y-dir/x-dir))
   ;; y-new = y + sin(arctan(y-dir/x-dir))
-  (let* ((arctn (atan (y-dir ant) (x-dir ant)))
-         (x-new (+ (x ant) (cos arctn)))
-         (y-new (+ (y ant) (sin arctn)))
+  (let* ((x-new (+ (x ant) (x-step ant)))
+         (y-new (+ (y ant) (y-step ant)))
          (x-new-int (round x-new))
          (y-new-int (round y-new)))
     (ant-log 4 "candidate positions for ant: " x-new "," y-new)
@@ -182,7 +197,7 @@
                  (y-dir (aref (u-array universe) x-empty y-empty)))))))
 
 
-(defun run (&key (size 10) (ants 1) (duration 100))
+(defun run (&key (size 500) (ants 10) (duration 100))
   "Run the simulation"
   (ant-log 0 "Run a simulation with " ants " ants in an universe of size " size)
   (ant-log 0 "Duration of the simulation: " duration)
@@ -193,13 +208,13 @@
   (ant-log 0 "It's the end of the world"))
 
 
-(defun run-opengl (&key (size 10) (ants 1) (duration 100))
+(defun run-opengl (&key (size 500) (ants 10) (duration 100))
   "Run the simulation"
   (ant-log 0 "Run a simulation with " ants " ants in an universe of size " size)
   (ant-log 0 "Duration of the simulation: " duration)
   (let ((universe (make-instance 'universe :size size)))
     (generate-ants ants universe t)
-    (glut:display-window (make-instance 'u-window :width 800 :height 600
+    (glut:display-window (make-instance 'u-window :width size :height size
                                         :universe universe)))
   (ant-log 0 "It's the end of the world"))
 
