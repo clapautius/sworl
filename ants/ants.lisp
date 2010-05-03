@@ -10,7 +10,7 @@
       `(progn
          ;; :fixme: replace format with something else
          ,(when (plusp log-level)
-                `(dotimes (i log-level) (format t " ")))
+                `(dotimes (i ,log-level) (format t " ")))
          ,(when (>= log-level 3)
                 `(format t ":debug:"))
          (let ((eol t))
@@ -40,7 +40,16 @@
 
    (u-time
     :initform 0
-    :accessor u-time))
+    :accessor u-time)
+
+  (dynamic-elements-future
+   :initform nil
+   :accessor dyn-elt-future)
+
+  (dynamic-elements-present
+   :initform nil
+   :accessor dyn-elt-present)
+   )
 
   (:documentation "An universe for ants"))
 
@@ -53,9 +62,11 @@
         (make-array (list (size universe) (size universe))
                     :initial-element nil)))
 
-
 (defgeneric empty (universe x y future)
   (:documentation "Check if the space is empty at the specified coordinates"))
+
+(defgeneric place-element-at (universe element x y &key future)
+  (:documentation "Place a new element in the universe"))
 
 
 (defmethod empty ((universe universe) x y future)
@@ -130,20 +141,23 @@
 (defgeneric passing-time (universe element)
   (:documentation "Passing time for an element from the universe"))
 
-(defmethod passing-time-universal ((universe universe))
+(defun clear-array-fast (array no-of-elements)
+  (let ((fast-array (make-array (list no-of-elements)
+                                :displaced-to array)))
+    (fill fast-array nil)))
+
+(defmethod passing-time-universal ((universe universe))  
   (ant-log 2 "preparing for next moment in time: " (u-time universe))
-  (dotimes (x (size universe))
-    (dotimes (y (size universe))
-      (unless (null (aref (u-array universe) x y))
-        (passing-time universe (aref (u-array universe) x y)))))
+  (dolist (elt (dyn-elt-present universe))
+        (passing-time universe elt))
   (incf (u-time universe))
   (let ((old-array (u-array universe)))
     (setf (u-array universe) (u-array-future universe))
     (setf (u-array-future universe) old-array))
-    (dotimes (x (size universe))
-      (dotimes (y (size universe))
-        (setf (aref (u-array-future universe) x y) nil)))
-    (ant-log 2 "time has passed for universe; time is now " (u-time universe)))
+  (setf (dyn-elt-present universe) (dyn-elt-future universe))
+  (setf (dyn-elt-future universe) nil)
+  (clear-array-fast (u-array-future universe) (* (size universe) (size universe)))
+  (ant-log 2 "time has passed for universe; time is now " (u-time universe)))
 
 
 (defmethod passing-time ((universe universe) (ant ant))
@@ -158,11 +172,22 @@
     ;; check free space
     (if (empty universe x-new-int y-new-int t)
         (progn
-          (setf (aref (u-array-future universe) x-new-int y-new-int) ant)
+          (place-element-at universe ant x-new-int y-new-int :future t)
           (setf (x ant) x-new)
           (setf (y ant) y-new)
           (ant-log 2 "new position for ant: " (x ant) "," (y ant)))
         (ant-log 2 "ant is blocked"))))
+
+
+(defmethod place-element-at ((universe universe) (ant ant) x y &key (future t))
+  (let ((array (if future (u-array-future universe) (u-array universe)))
+        (list (if future (dyn-elt-future universe) (dyn-elt-present universe))))
+    (setf (aref array x y) ant)
+    (if list
+      (nconc list (list ant))
+      (if future
+          (setf (dyn-elt-future universe) (list ant))
+          (setf (dyn-elt-present universe) (list ant))))))
 
 
 ;;; testing functions
@@ -184,12 +209,13 @@
           (get-free-space universe))
         (when (null x-empty)
           (error "Universe is full"))
-        (setf (aref (u-array universe) x-empty y-empty)
-              (if random-direction
-                  (make-instance 'ant :x x-empty :y y-empty
-                                 :x-dir (random 10)
-                                 :y-dir (random 10))
-                  (make-instance 'ant :x x-empty :y y-empty)))
+        (place-element-at universe
+                          (if random-direction
+                              (make-instance 'ant :x x-empty :y y-empty
+                                             :x-dir (random 10)
+                                             :y-dir (random 10))
+                              (make-instance 'ant :x x-empty :y y-empty))
+                          x-empty y-empty :future nil)
         (ant-log 3 "placing a new ant at " x-empty "," y-empty)
         (ant-log 3 "direction: "
                  (x-dir (aref (u-array universe) x-empty y-empty))

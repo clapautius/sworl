@@ -9,7 +9,7 @@
 (require 'cl-opengl)
 
 (asdf:defsystem :sworl
-    :components ((:file "package")                        
+    :components ((:file "package")
                  (:file "ants/ants"
                         :depends-on ("package"))
 				 (:file "ants/ants-visual"
