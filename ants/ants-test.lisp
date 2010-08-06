@@ -11,13 +11,14 @@
 		 (progn
 		   (format t " FAILED~%")
 		   nil))))
+
   
 (defun ants-test-all ()
   (let ((test-universe (make-instance 'universe :size 5 :max-age 10))
 		(ant1 (make-instance 'ant :x 2 :y 2 :x-dir 1 :y-dir 1 :step-size 1.4))
 		(ant2 (make-instance 'ant :x 1 :y 2 :x-dir 1 :y-dir 1 :step-size 1.4)))
-	(setf (aref (u-array test-universe) 2 2) ant1)
-	(setf (aref (u-array test-universe) 1 2) ant2)
+	(place-element-at test-universe ant1 2 2 :future nil)
+	(place-element-at test-universe ant2 1 2 :future nil)
 
 	;; advance one sec.
 	(passing-time-universal test-universe)
@@ -27,3 +28,9 @@
 	(test-case (and (= (round (x ant2)) 1) (= (round (y ant2)) 4)))
 	(test-case (not (empty test-universe 1 4 t))) ; check in the future
 ))
+
+;;; * emacs display settings *
+;;; Local Variables:
+;;; default-tab-width: 4
+;;; indent-tabs-mode: nil
+;;; End:

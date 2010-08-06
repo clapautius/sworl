@@ -3,7 +3,7 @@
 
 ;;; logging
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *ant-log-level* 0))
+  (defparameter *ant-log-level* 5))
 
 (defmacro ant-log (log-level &rest print-list)
   (if (<= log-level *ant-log-level*)
@@ -46,7 +46,7 @@
    (u-max-age
     :initarg :max-age
     :initform nil ; nil = unlimited
-    :accessor u-max-age))
+    :accessor u-max-age)
 
   (dynamic-elements-future
    :initform nil
