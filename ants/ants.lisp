@@ -39,7 +39,12 @@
 
    (u-time
     :initform 0
-    :accessor u-time))
+    :accessor u-time)
+
+   (u-max-age
+    :initarg :max-age
+    :initform nil ; nil = unlimited
+    :accessor u-max-age))
 
   (:documentation "An universe for ants"))
 
@@ -90,6 +95,11 @@
     :initform 0
     :accessor y)
 
+   (step-size
+    :initarg :step-size
+    :initform 1
+    :accessor step-size)
+
    ;; by default go up
    (x-direction
     :initarg :x-dir
@@ -115,8 +125,8 @@
 ;; is modified
 (defmethod initialize-instance :after ((ant ant) &key)
   (let* ((arctn (atan (y-dir ant) (x-dir ant))))
-    (setf (slot-value ant 'x-step) (cos arctn))
-    (setf (slot-value ant 'y-step) (sin arctn))))
+    (setf (slot-value ant 'x-step) (* (step-size ant) (cos arctn)))
+    (setf (slot-value ant 'y-step) (* (step-size ant) (sin arctn)))))
 
 (defmethod print-object ((ant ant) stream)
   (format stream "ANT(~a,~a)" (x ant) (y ant)))
@@ -124,13 +134,18 @@
 
 ;;; passing-time multimethod
 (defgeneric passing-time-universal (universe)
-  (:documentation "Passing time for universe"))
+  (:documentation "Passing time for universe, return nil if the universe has
+reached its maximum age or some other cataclysm has happened."))
 
 (defgeneric passing-time (universe element)
   (:documentation "Passing time for an element from the universe"))
 
 (defmethod passing-time-universal ((universe universe))
   (ant-log 2 "preparing for next moment in time: " (u-time universe))
+  (when (and (u-max-age universe) (>= (u-time universe) (u-max-age universe)))
+    (ant-log 1 "Universe has reached its max age. It's the end of the world")
+    (return-from passing-time-universal nil))
+    
   (dotimes (x (size universe))
     (dotimes (y (size universe))
       (unless (null (aref (u-array universe) x y))
@@ -142,17 +157,16 @@
     (dotimes (x (size universe))
       (dotimes (y (size universe))
         (setf (aref (u-array-future universe) x y) nil)))
-    (ant-log 2 "time has passed for universe; time is now " (u-time universe)))
+    (ant-log 2 "time has passed for universe; time is now " (u-time universe))
+    t)
 
 
-(defmethod passing-time ((universe universe) (ant ant))
-  (ant-log 2 "ant " ant " in action")
-  ;; x-new = x + cos(arctan(y-dir/x-dir))
-  ;; y-new = y + sin(arctan(y-dir/x-dir))
-  (let* ((x-new (+ (x ant) (x-step ant)))
-         (y-new (+ (y ant) (y-step ant)))
+(defmethod ant-try-move ((ant ant) (universe universe) x-step y-step)
+  (let* ((x-new (+ (x ant) x-step))
+         (y-new (+ (y ant) y-step))
          (x-new-int (round x-new))
          (y-new-int (round y-new)))
+    (ant-log 5 "current params: x=" (x ant) " y=" (y ant) " x-step=" x-step " y-step=" y-step)
     (ant-log 4 "candidate positions for ant: " x-new "," y-new)
     ;; check free space
     (if (empty universe x-new-int y-new-int t)
@@ -160,8 +174,39 @@
           (setf (aref (u-array-future universe) x-new-int y-new-int) ant)
           (setf (x ant) x-new)
           (setf (y ant) y-new)
-          (ant-log 2 "new position for ant: " (x ant) "," (y ant)))
-        (ant-log 2 "ant is blocked"))))
+          (ant-log 2 "new position for ant: " (x ant) "," (y ant))
+          t)
+        (progn
+          (ant-log 2 "ant cannot go forward")
+          nil))))
+
+
+(defun ant-try-move-forward (ant universe)
+  ;; try to keep the same direction
+  ;; x-new = x + cos(arctan(y-dir/x-dir))
+  ;; y-new = y + sin(arctan(y-dir/x-dir))
+  (ant-try-move ant universe (x-step ant) (y-step ant)))
+
+
+(defun ant-try-move-left (ant universe)
+  (ant-try-move ant universe (- (y-step ant)) (x-step ant)))
+
+(defun ant-try-move-right (ant universe)
+  (ant-try-move ant universe (y-step ant) (- (x-step ant))))
+
+(defun ant-try-move-backward (ant universe)
+  (ant-try-move ant universe (- (x-step ant)) (- (y-step ant))))
+
+
+(defmethod passing-time ((universe universe) (ant ant))
+  (ant-log 2 "ant " ant " in action")
+  (or (ant-try-move-forward ant universe)
+      (ant-try-move-left ant universe)
+      (ant-try-move-right ant universe)
+      (ant-try-move-backward ant universe) 
+      (progn
+        (ant-log 0 "ant is blocked and confused")
+        t)))
 
 
 ;;; testing functions
@@ -211,11 +256,11 @@
   "Run the simulation"
   (ant-log 0 "Run a simulation with " ants " ants in an universe of size " size)
   (ant-log 0 "Duration of the simulation: " duration)
-  (let ((universe (make-instance 'universe :size size)))
+  (let ((universe (make-instance 'universe :size size :max-age duration)))
     (generate-ants ants universe t)
     (glut:display-window (make-instance 'u-window :width size :height size
                                         :universe universe)))
-  (ant-log 0 "It's the end of the world"))
+  (ant-log 0 "That's all folks!"))
 
 
 ;;; * emacs display settings *

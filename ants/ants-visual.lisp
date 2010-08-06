@@ -11,6 +11,11 @@
    :title "Universe (sworl)"
 	:mode '(:double :rgb)))
 
+(defmethod glut:keyboard ((window u-window) key x y)
+  (declare (ignore x y))
+  (when (eql key #\Esc)
+    (glut:destroy-current-window)))
+
 (defmethod glut:display-window :before ((w u-window))
   (gl:clear-color 0 0 0 0)
   (gl:matrix-mode :projection)
@@ -32,5 +37,6 @@
 
 (defmethod glut:idle ((w u-window))
   ;(sleep 0.5)
-  (passing-time-universal (universe w))
-  (glut:post-redisplay))
+  (if (passing-time-universal (universe w))
+	  (glut:post-redisplay)
+	  (glut:destroy-current-window)))
