@@ -9,9 +9,10 @@
   (if (<= log-level *ant-log-level*)
       `(progn
          ;; :fixme: replace format with something else
-         (dotimes (i ,log-level) (format t " "))
-         (when (>= ,log-level 3)
-           (format t ":debug:"))
+         ,(when (plusp log-level)
+                `(dotimes (i ,log-level) (format t " ")))
+         ,(when (>= log-level 3)
+                `(format t ":debug:"))
          (let ((eol t))
            (dolist (p (list ,@print-list))
              (if (eql p ':no-eol)
@@ -41,10 +42,20 @@
     :initform 0
     :accessor u-time)
 
+
    (u-max-age
     :initarg :max-age
     :initform nil ; nil = unlimited
     :accessor u-max-age))
+
+  (dynamic-elements-future
+   :initform nil
+   :accessor dyn-elt-future)
+
+  (dynamic-elements-present
+   :initform nil
+   :accessor dyn-elt-present)
+   )
 
   (:documentation "An universe for ants"))
 
@@ -60,6 +71,9 @@
 
 (defgeneric empty (universe x y future)
   (:documentation "Check if the space is empty at the specified coordinates"))
+
+(defgeneric place-element-at (universe element x y &key future)
+  (:documentation "Place a new element in the universe"))
 
 
 (defmethod empty ((universe universe) x y future)
@@ -140,25 +154,30 @@ reached its maximum age or some other cataclysm has happened."))
 (defgeneric passing-time (universe element)
   (:documentation "Passing time for an element from the universe"))
 
-(defmethod passing-time-universal ((universe universe))
+(defun clear-array-fast (array no-of-elements)
+  (let ((fast-array (make-array (list no-of-elements)
+                                :displaced-to array)))
+    (fill fast-array nil)))
+
+(defmethod passing-time-universal ((universe universe))  
   (ant-log 2 "preparing for next moment in time: " (u-time universe))
+
   (when (and (u-max-age universe) (>= (u-time universe) (u-max-age universe)))
     (ant-log 1 "Universe has reached its max age. It's the end of the world")
     (return-from passing-time-universal nil))
     
-  (dotimes (x (size universe))
-    (dotimes (y (size universe))
-      (unless (null (aref (u-array universe) x y))
-        (passing-time universe (aref (u-array universe) x y)))))
+
+  (dolist (elt (dyn-elt-present universe))
+        (passing-time universe elt))
+
   (incf (u-time universe))
   (let ((old-array (u-array universe)))
     (setf (u-array universe) (u-array-future universe))
     (setf (u-array-future universe) old-array))
-    (dotimes (x (size universe))
-      (dotimes (y (size universe))
-        (setf (aref (u-array-future universe) x y) nil)))
-    (ant-log 2 "time has passed for universe; time is now " (u-time universe))
-    t)
+  (setf (dyn-elt-present universe) (dyn-elt-future universe))
+  (setf (dyn-elt-future universe) nil)
+  (clear-array-fast (u-array-future universe) (* (size universe) (size universe)))
+  (ant-log 2 "time has passed for universe; time is now " (u-time universe)))
 
 
 (defmethod ant-try-move ((ant ant) (universe universe) x-step y-step)
@@ -171,7 +190,7 @@ reached its maximum age or some other cataclysm has happened."))
     ;; check free space
     (if (empty universe x-new-int y-new-int t)
         (progn
-          (setf (aref (u-array-future universe) x-new-int y-new-int) ant)
+          (place-element-at universe ant x-new-int y-new-int :future t)
           (setf (x ant) x-new)
           (setf (y ant) y-new)
           (ant-log 2 "new position for ant: " (x ant) "," (y ant))
@@ -209,6 +228,17 @@ reached its maximum age or some other cataclysm has happened."))
         t)))
 
 
+(defmethod place-element-at ((universe universe) (ant ant) x y &key (future t))
+  (let ((array (if future (u-array-future universe) (u-array universe)))
+        (list (if future (dyn-elt-future universe) (dyn-elt-present universe))))
+    (setf (aref array x y) ant)
+    (if list
+      (nconc list (list ant))
+      (if future
+          (setf (dyn-elt-future universe) (list ant))
+          (setf (dyn-elt-present universe) (list ant))))))
+
+
 ;;; testing functions
 (defun generate-ants (number universe &optional (random-direction nil))
   "Generate <number> ants and place them in the universe"
@@ -228,12 +258,13 @@ reached its maximum age or some other cataclysm has happened."))
           (get-free-space universe))
         (when (null x-empty)
           (error "Universe is full"))
-        (setf (aref (u-array universe) x-empty y-empty)
-              (if random-direction
-                  (make-instance 'ant :x x-empty :y y-empty
-                                 :x-dir (random 10)
-                                 :y-dir (random 10))
-                  (make-instance 'ant :x x-empty :y y-empty)))
+        (place-element-at universe
+                          (if random-direction
+                              (make-instance 'ant :x x-empty :y y-empty
+                                             :x-dir (random 10)
+                                             :y-dir (random 10))
+                              (make-instance 'ant :x x-empty :y y-empty))
+                          x-empty y-empty :future nil)
         (ant-log 3 "placing a new ant at " x-empty "," y-empty)
         (ant-log 3 "direction: "
                  (x-dir (aref (u-array universe) x-empty y-empty))
