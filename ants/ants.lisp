@@ -3,7 +3,7 @@
 
 ;;; logging
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *ant-log-level* 5))
+  (defparameter *ant-log-level* 6))
 
 (defmacro ant-log (log-level &rest print-list)
   (if (<= log-level *ant-log-level*)
@@ -24,6 +24,11 @@
 ;;; end logging stuff
 
 
+(defmacro dtorad (degrees)
+  `(/ (* 3.1415926  ,degrees) 180))
+
+(deftype static-element () "Static elements in the universe." '(member rock))
+
 (defclass universe ()
   ((size
     :initarg :size
@@ -38,6 +43,10 @@
     :initform nil
     :accessor u-array-future)
 
+   (u-array-static
+    :initform nil
+    :accessor u-array-static)
+ 
    (u-time
     :initform 0
     :accessor u-time)
@@ -66,6 +75,9 @@
                                         :initial-element nil))
   (setf (slot-value universe 'u-array-future)
         (make-array (list (size universe) (size universe))
+                    :initial-element nil))
+  (setf (slot-value universe 'u-array-static)
+        (make-array (list (size universe) (size universe))
                     :initial-element nil)))
 
 
@@ -74,6 +86,9 @@
 
 (defgeneric place-element-at (universe element x y &key future)
   (:documentation "Place a new element in the universe"))
+
+(defgeneric place-static-element-at (universe static-element x y)
+  (:documentation "Place a static element in the universe"))
 
 
 (defmethod empty ((universe universe) x y future)
@@ -86,18 +101,33 @@
 
 
 (defmethod print-object ((universe universe) stream)
-  (dotimes (x (size universe))
-    (dotimes (y (size universe))
-      (let ((elt (aref (u-array universe) x y)))
-        (cond
-          ((or (null elt) (zerop elt))
-           (format stream "     "))
-          ((eql (type-of elt) 'ANT)
-           (format stream " ANT "))
-          (t
-           (format stream "  ?  ")))))
-    (terpri)))
+  (dolist (universe-side (list (u-array-static universe) (u-array universe)
+                               (u-array-future universe)))
+    (format stream "Side:~%")
+    (dotimes (x (size universe))
+      (dotimes (y (size universe))
+        (let ((elt (aref universe-side x y)))
+          (cond
+            ((or (null elt) (and (numberp elt) (zerop elt)))
+             (format stream "   "))
+            ((eql (type-of elt) 'ANT)
+             (format stream " A "))
+            ((typep elt 'static-element)
+             (cond
+               ((equal elt 'rock)
+                (format stream " * "))
+               (t
+              (format stream " . "))))
+            (t
+             (format stream " ? ")))))
+      (terpri))))
 
+
+(defmethod place-static-element-at ((universe universe) element x y)
+  (if (typep element 'static-element)
+      (setf (aref (u-array-static universe) x y) element)
+      (error "The element is not a static element")))
+ 
 
 (defclass ant ()
   ((x-pos
@@ -114,36 +144,56 @@
     :initform 1
     :accessor step-size)
 
-   ;; by default go up
-   (x-direction
-    :initarg :x-dir
-    :initform 0
-    :accessor x-dir)
-   (y-direction
-    :initarg :y-dir
-    :initform 1
-    :accessor y-dir)
+   (direction
+    :documentation "The direction (angle in radians, values between 0 and 2*pi rad.)"
+    :initarg :direction
+    :initform 1.57 ; by default go up
+    :accessor direction)
 
-  ;; x-step & y-step are float values representing the exact value of a step on
-  ;; x and y axis
-  (x-step
-   :reader x-step)
-  (y-step
-   :reader y-step))
+   ;; x-step & y-step are float values representing the exact value of a step on
+   ;; x and y axis
+   (x-step
+    :reader x-step)
+   (y-step
+    :reader y-step)
 
+   (preferred-color
+    :initarg :color
+    :initform 'red
+    :reader color))
+  
   (:documentation "Ant class"))
 
 
-;; initialize x-step & y-step
-;; :fixme: - these values should be computed again if x-direction or y-direction
-;; is modified
+(defgeneric entity-change-dir (entity degrees)
+  (:documentation "Change the entity direction with 'degrees' degrees"))
+
+(defgeneric entity-try-move (ant universe x-step y-step)
+  (:documentation "Try to move the specified entity in the universe. Return nil
+  if not possible."))
+
+
+;; initialize x-step & y-step 
+;; fixme: - these values should be computed again if direction is modified
 (defmethod initialize-instance :after ((ant ant) &key)
-  (let* ((arctn (atan (y-dir ant) (x-dir ant))))
-    (setf (slot-value ant 'x-step) (* (step-size ant) (cos arctn)))
-    (setf (slot-value ant 'y-step) (* (step-size ant) (sin arctn)))))
+  (setf (slot-value ant 'x-step) (* (step-size ant) (cos (direction ant))))
+  (setf (slot-value ant 'y-step) (* (step-size ant) (sin (direction ant)))))
 
 (defmethod print-object ((ant ant) stream)
   (format stream "ANT(~a,~a)" (x ant) (y ant)))
+
+
+(defmethod entity-change-dir ((ant ant) rad)
+  (setf (direction ant) (+ (direction ant) rad))
+  (setf (slot-value ant 'x-step) (* (step-size ant) (cos (direction ant))))
+  (setf (slot-value ant 'y-step) (* (step-size ant) (sin (direction ant))))
+  ;;(ant-log 6 "step-size for ant is " (step-size ant))
+  ;;(ant-log 6 "cos & sin for ant is " (cos (direction ant)) " , "
+  ;;         (sin (direction ant)))
+  (ant-log 4 "new direction for ant is " (direction ant))
+  (ant-log 6 "new x-step & y-step for ant is " (slot-value ant 'x-step)
+           (slot-value ant 'y-step))
+  t)
 
 
 ;;; passing-time multimethod
@@ -166,7 +216,6 @@ reached its maximum age or some other cataclysm has happened."))
     (ant-log 1 "Universe has reached its max age. It's the end of the world")
     (return-from passing-time-universal nil))
     
-
   (dolist (elt (dyn-elt-present universe))
         (passing-time universe elt))
 
@@ -177,10 +226,11 @@ reached its maximum age or some other cataclysm has happened."))
   (setf (dyn-elt-present universe) (dyn-elt-future universe))
   (setf (dyn-elt-future universe) nil)
   (clear-array-fast (u-array-future universe) (* (size universe) (size universe)))
-  (ant-log 2 "time has passed for universe; time is now " (u-time universe)))
+  (ant-log 2 "time has passed for universe; time is now " (u-time universe))
+  t)
 
 
-(defmethod ant-try-move ((ant ant) (universe universe) x-step y-step)
+(defmethod entity-try-move ((ant ant) (universe universe) x-step y-step)
   (let* ((x-new (+ (x ant) x-step))
          (y-new (+ (y ant) y-step))
          (x-new-int (round x-new))
@@ -193,36 +243,39 @@ reached its maximum age or some other cataclysm has happened."))
           (place-element-at universe ant x-new-int y-new-int :future t)
           (setf (x ant) x-new)
           (setf (y ant) y-new)
-          (ant-log 2 "new position for ant: " (x ant) "," (y ant))
+          (ant-log 4 "new position for ant: " (x ant) "," (y ant))
           t)
-        (progn
-          (ant-log 2 "ant cannot go forward")
-          nil))))
-
+        nil)))
 
 (defun ant-try-move-forward (ant universe)
   ;; try to keep the same direction
-  ;; x-new = x + cos(arctan(y-dir/x-dir))
-  ;; y-new = y + sin(arctan(y-dir/x-dir))
-  (ant-try-move ant universe (x-step ant) (y-step ant)))
-
+  ;; x-new = x + cos(direction)
+  ;; y-new = y + sin(direction)
+  (entity-try-move ant universe (x-step ant) (y-step ant)))
 
 (defun ant-try-move-left (ant universe)
-  (ant-try-move ant universe (- (y-step ant)) (x-step ant)))
+  (and (entity-try-move ant universe (- (y-step ant)) (x-step ant))
+       (entity-change-dir ant (dtorad 90))))
 
 (defun ant-try-move-right (ant universe)
-  (ant-try-move ant universe (y-step ant) (- (x-step ant))))
+  (and (entity-try-move ant universe (y-step ant) (- (x-step ant)))
+       (entity-change-dir ant (dtorad -90))))
 
 (defun ant-try-move-backward (ant universe)
-  (ant-try-move ant universe (- (x-step ant)) (- (y-step ant))))
+  (and (entity-try-move ant universe (- (x-step ant)) (- (y-step ant)))
+       (entity-change-dir ant (dtorad 180))))
 
 
 (defmethod passing-time ((universe universe) (ant ant))
   (ant-log 2 "ant " ant " in action")
   (or (ant-try-move-forward ant universe)
+      (ant-log 4 "cannot move forward")
       (ant-try-move-left ant universe)
+      (ant-log 4 "cannot move left")
       (ant-try-move-right ant universe)
+      (ant-log 4 "cannot move right")
       (ant-try-move-backward ant universe) 
+      (ant-log 4 "cannot move backwards")
       (progn
         (ant-log 0 "ant is blocked and confused")
         t)))
@@ -266,10 +319,7 @@ reached its maximum age or some other cataclysm has happened."))
                               (make-instance 'ant :x x-empty :y y-empty))
                           x-empty y-empty :future nil)
         (ant-log 3 "placing a new ant at " x-empty "," y-empty)
-        (ant-log 3 "direction: "
-                 (x-dir (aref (u-array universe) x-empty y-empty))
-                 ","
-                 (y-dir (aref (u-array universe) x-empty y-empty)))))))
+        (ant-log 3 "direction: " (direction (aref (u-array universe) x-empty y-empty)))))))
 
 
 (defun run (&key (size 500) (ants 10) (duration 100))
