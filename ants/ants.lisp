@@ -3,7 +3,7 @@
 
 ;;; logging
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *ant-log-level* 6))
+  (defparameter *ant-log-level* 0))
 
 (defmacro ant-log (log-level &rest print-list)
   (if (<= log-level *ant-log-level*)
@@ -27,12 +27,16 @@
 (defmacro dtorad (degrees)
   `(/ (* 3.1415926  ,degrees) 180))
 
+(defmacro radtod (radians)
+  `(/ (* ,radians 180) 3.1415926))
+
+
 (deftype static-element () "Static elements in the universe." '(member rock))
 
 (defclass universe ()
   ((size
     :initarg :size
-    :initform (error "Universe MUST have a size")
+    :initform (error "Universe MUST have a size!")
     :reader size)
    
    (u-array
@@ -51,7 +55,6 @@
     :initform 0
     :accessor u-time)
 
-
    (u-max-age
     :initarg :max-age
     :initform nil ; nil = unlimited
@@ -64,6 +67,11 @@
   (dynamic-elements-present
    :initform nil
    :accessor dyn-elt-present)
+
+   (ant-move-func
+    :initarg :ant-move-func
+    :initform nil
+    :reader ant-move-func)
    )
 
   (:documentation "An universe for ants"))
@@ -84,7 +92,7 @@
 (defgeneric empty (universe x y future)
   (:documentation "Check if the space is empty at the specified coordinates"))
 
-(defgeneric place-element-at (universe element x y &key future)
+(defgeneric place-elt-at (universe element x y &key future)
   (:documentation "Place a new element in the universe"))
 
 (defgeneric place-static-element-at (universe static-element x y)
@@ -94,9 +102,10 @@
 (defmethod empty ((universe universe) x y future)
   (when (and (>= x 0) (>= y 0) (< x (size universe)) (< y (size universe)))
     (return-from empty
-      (if future
-          (null (aref (u-array-future universe) x y))
-          (null (aref (u-array universe) x y)))))
+      (and (null (aref (u-array-static universe) x y))
+           (if future
+               (null (aref (u-array-future universe) x y))
+               (null (aref (u-array universe) x y))))))
   nil)
 
 
@@ -240,7 +249,7 @@ reached its maximum age or some other cataclysm has happened."))
     ;; check free space
     (if (empty universe x-new-int y-new-int t)
         (progn
-          (place-element-at universe ant x-new-int y-new-int :future t)
+          (place-elt-at universe ant x-new-int y-new-int :future t)
           (setf (x ant) x-new)
           (setf (y ant) y-new)
           (ant-log 4 "new position for ant: " (x ant) "," (y ant))
@@ -265,8 +274,14 @@ reached its maximum age or some other cataclysm has happened."))
   (and (entity-try-move ant universe (- (x-step ant)) (- (y-step ant)))
        (entity-change-dir ant (dtorad 180))))
 
+(defun ant-try-move-angle (ant universe angle)
+  (ant-log 2 "  trying to change angle with " (radtod angle) " degrees")
+  (let ((x-step (* (step-size ant) (cos (+ (direction ant) angle))))
+        (y-step (* (step-size ant) (sin (+ (direction ant) angle)))))
+    (and (entity-try-move ant universe x-step y-step)
+         (entity-change-dir ant angle))))
 
-(defmethod passing-time ((universe universe) (ant ant))
+(defun ant-move-deterministic (ant universe)
   (ant-log 2 "ant " ant " in action")
   (or (ant-try-move-forward ant universe)
       (ant-log 4 "cannot move forward")
@@ -281,67 +296,48 @@ reached its maximum age or some other cataclysm has happened."))
         t)))
 
 
-(defmethod place-element-at ((universe universe) (ant ant) x y &key (future t))
+(defun ant-move-random (ant universe)
+  (ant-log 2 "ant " ant " moving random")
+  (if (zerop (random 2)) ; keep direction
+      (progn
+        (ant-log 2 "  trying to keep direction")
+        (ant-move-deterministic ant universe))
+      (progn
+        (do ((angle (- (random 160) 80))
+             (retries 0))
+            ((or (>= retries 6)
+                 (ant-try-move-angle ant universe (dtorad angle)))
+             (not (>= retries 6)))
+          (incf retries)
+          (setf angle (- (random 160) 80))))))
+
+
+(defun ant-move-random-or-det (ant universe)
+  (or (ant-move-random ant universe)
+      (ant-move-deterministic ant universe)))
+
+
+(defmethod passing-time ((universe universe) (ant ant))
+  (ant-log 2 "ant " ant " in action")
+  (if (ant-move-func universe)
+      (progn
+        (ant-log 5 "calling custom func " (ant-move-func universe)
+                 " for moving ant")
+        (funcall (ant-move-func universe) ant universe))
+      (ant-move-random-or-det ant universe)))
+
+
+(defmethod place-elt-at ((universe universe) (ant ant) x y &key (future t))
   (let ((array (if future (u-array-future universe) (u-array universe)))
         (list (if future (dyn-elt-future universe) (dyn-elt-present universe))))
+    (ant-log 3 "placing a new ant at " x "," y)
+    (ant-log 3 "direction: " (radtod (direction ant)))
     (setf (aref array x y) ant)
     (if list
       (nconc list (list ant))
       (if future
           (setf (dyn-elt-future universe) (list ant))
           (setf (dyn-elt-present universe) (list ant))))))
-
-
-;;; testing functions
-(defun generate-ants (number universe &optional (random-direction nil))
-  "Generate <number> ants and place them in the universe"
-  (flet ((get-free-space (universe)
-           "Find a free space in the universe (return multiple values)"
-           (dotimes (x (size universe))
-             (dotimes (y (size universe))
-               (if (empty universe x y nil)
-                   (progn
-                     (ant-log 5 "found an empty spot at " x "," y)
-                     (return-from get-free-space (values x y)))
-                   (ant-log 5 "spot at " x "," y " not empty"))))
-           (values nil nil)))
-    (let (x-empty y-empty)
-      (dotimes (i number)
-        (multiple-value-setq (x-empty y-empty)
-          (get-free-space universe))
-        (when (null x-empty)
-          (error "Universe is full"))
-        (place-element-at universe
-                          (if random-direction
-                              (make-instance 'ant :x x-empty :y y-empty
-                                             :x-dir (random 10)
-                                             :y-dir (random 10))
-                              (make-instance 'ant :x x-empty :y y-empty))
-                          x-empty y-empty :future nil)
-        (ant-log 3 "placing a new ant at " x-empty "," y-empty)
-        (ant-log 3 "direction: " (direction (aref (u-array universe) x-empty y-empty)))))))
-
-
-(defun run (&key (size 500) (ants 10) (duration 100))
-  "Run the simulation"
-  (ant-log 0 "Run a simulation with " ants " ants in an universe of size " size)
-  (ant-log 0 "Duration of the simulation: " duration)
-  (let ((universe (make-instance 'universe :size size)))
-    (generate-ants ants universe t)
-    (dotimes (i duration)
-      (passing-time-universal universe)))
-  (ant-log 0 "It's the end of the world"))
-
-
-(defun run-opengl (&key (size 500) (ants 10) (duration 100))
-  "Run the simulation"
-  (ant-log 0 "Run a simulation with " ants " ants in an universe of size " size)
-  (ant-log 0 "Duration of the simulation: " duration)
-  (let ((universe (make-instance 'universe :size size :max-age duration)))
-    (generate-ants ants universe t)
-    (glut:display-window (make-instance 'u-window :width size :height size
-                                        :universe universe)))
-  (ant-log 0 "That's all folks!"))
 
 
 ;;; * emacs display settings *
