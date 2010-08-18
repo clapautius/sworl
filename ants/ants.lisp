@@ -296,20 +296,20 @@ reached its maximum age or some other cataclysm has happened."))
         t)))
 
 
-(defun ant-move-random (ant universe)
+(defun ant-move-random (ant universe &optional (angle-limit 70))
   (ant-log 2 "ant " ant " moving random")
-  (if (zerop (random 2)) ; keep direction
+  (if (plusp (random 3)) ; keep direction
       (progn
         (ant-log 2 "  trying to keep direction")
         (ant-move-deterministic ant universe))
       (progn
-        (do ((angle (- (random 160) 80))
+        (do ((angle (- (random (* angle-limit 2)) angle-limit))
              (retries 0))
-            ((or (>= retries 6)
+            ((or (>= retries 4)
                  (ant-try-move-angle ant universe (dtorad angle)))
-             (not (>= retries 6)))
+             (not (>= retries 4)))
           (incf retries)
-          (setf angle (- (random 160) 80))))))
+          (setf angle (- (random (* angle-limit 2)) angle-limit))))))
 
 
 (defun ant-move-random-or-det (ant universe)
