@@ -12,26 +12,56 @@
            (setf error-flag t)
            nil))))
 
-  
-(defun ants-test-all ()
+
+(defun ants-test-all-universe ()
+  "Generate universe used by 'ants-test-all'"
   (let ((test-universe (make-instance 'universe :size 5 :max-age 10
                                       :ant-move-func 'ant-move-deterministic))
 		(ant1 (make-instance 'ant :x 2 :y 2 :direction (dtorad 45)
                              :step-size 1.4 :id "ant1"))
 		(ant2 (make-instance 'ant :x 1 :y 2 :direction (dtorad 45)
                              :step-size 1.4 :id "ant2"))
-        (error-flag nil))
+        (phe1 (make-instance 'pheromone :x 2 :y 2 :age-max 5))
+        (phe2 (make-instance 'pheromone :x 0 :y 0 :age-max 5))
+        (phe3 (make-instance 'pheromone :x 0 :y 0 :age-max 3 :intensity 7))
+        (phe4 (make-instance 'pheromone :x 1 :y 1 :age-max 3 :intensity 5)))
+    (place-elt-at test-universe phe1 2 2 :future nil)
 	(place-elt-at test-universe ant1 2 2 :future nil)
 	(place-elt-at test-universe ant2 1 2 :future nil)
+    (place-elt-at test-universe phe2 0 0 :future nil)
+    (place-elt-at test-universe phe3 0 0 :future nil)
+    (place-elt-at test-universe phe4 0 0 :future nil)
+    (place-static-elt-at test-universe 'rock 1 0)
+    test-universe))
 
+
+(defun ants-test-all ()
+  (let* ((test-universe (ants-test-all-universe))
+         (error-flag nil)
+         (ant2 (get-elt-at test-universe 'ant 1 2))
+         (phe4 (get-elt-at test-universe 'pheromone 1 1)))
+
+    ;; check ant & pheromone
+    (test-case (not (empty-p test-universe 2 2 nil)))
 	;; advance one sec.
 	(passing-time-universal test-universe)
+    ;; check movement
 	(ant-try-move-left ant2 test-universe)
-    (test-case (not (empty test-universe 5 5 nil)))
-	(test-case (empty test-universe 2 2 nil))
-	(test-case (not (empty test-universe 3 3 nil)))
+    (test-case (not (empty-p test-universe 5 5 nil)))
+    ;; check ants
+	(test-case (empty-p test-universe 2 2 nil))
+	(test-case (not (empty-p test-universe 3 3 nil)))
 	(test-case (and (= (round (x ant2)) 1) (= (round (y ant2)) 4)))
-	(test-case (not (empty test-universe 1 4 t))) ; check in the future
+    ;; check pheromones
+    (test-case (empty-p test-universe 0 0 nil))
+    (test-case (empty-p test-universe 1 1 nil))
+    (test-case (eq (get-elt-at test-universe 'pheromone 1 1) phe4))
+
+    (test-case (not (empty-p test-universe 1 0 nil))
+               "Testing static elt: ")
+
+    ;; check in the future
+	(test-case (not (empty-p test-universe 1 4 t)))
 
     (if error-flag
         (format t "At least one error encountered!")
@@ -41,7 +71,7 @@
 (defun test-generate-small-universe ()
   "Generate a small universe with everything (for testing)"
   (let ((small-universe (make-instance 'universe :size 8 :max-age 50)))
-    (place-static-element-at small-universe 'rock 5 5)
+    (place-static-elt-at small-universe 'rock 5 5)
     small-universe))
 
 
@@ -54,7 +84,7 @@
            "Find a free space in the universe (return multiple values)"
            (dotimes (x (size universe))
              (dotimes (y (size universe))
-               (if (empty universe x y nil)
+               (if (empty-p universe x y nil)
                    (progn
                      (ant-log 5 "found an empty spot at " x "," y)
                      (return-from get-free-space (values x y)))
@@ -83,7 +113,7 @@
     (do ((x-proposed (random (size universe)))
          (y-proposed (random (size universe)))
          (color (nth (random 5) (list 'red 'green 'blue 'yellow 'white))))
-        ((and (empty universe x-proposed y-proposed nil)
+        ((and (empty-p universe x-proposed y-proposed nil)
               (place-elt-at universe
                             (if random-direction
                                 (make-instance 'ant :x x-proposed :y y-proposed
@@ -117,7 +147,7 @@
     (ants-pre-run test-universe 2)
 	(place-elt-at test-universe ant1 0 50 :future nil)
 	(place-elt-at test-universe ant2 0 0 :future nil)
-    (place-static-element-at test-universe 'rock 30 10)
+    (place-static-elt-at test-universe 'rock 30 10)
     (glut:display-window (make-instance 'u-window :width size :height size
                                         :pause 0.25 :universe test-universe)))
   (ants-post-run))
@@ -147,9 +177,9 @@
     (ants-pre-run test-universe 2)
 	(place-elt-at test-universe ant1 50 50 :future nil)
 	(place-elt-at test-universe ant2 30 30 :future nil)
-    (place-static-element-at test-universe 'rock 30 10)
+    (place-static-elt-at test-universe 'rock 30 10)
     (dotimes (i 35)
-      (place-static-element-at test-universe 'rock (+ i 60) 60))
+      (place-static-elt-at test-universe 'rock (+ i 60) 60))
     (glut:display-window (make-instance 'u-window :width size :height size
                                         :pause 0.1 :universe test-universe)))
   (ants-post-run))

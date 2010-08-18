@@ -90,31 +90,59 @@
                     :initial-element nil)))
 
 
-(defgeneric empty (universe x y future)
+(defgeneric empty-p (universe x y future)
   (:documentation "Check if the space is empty at the specified coordinates"))
 
 (defgeneric place-elt-at (universe element x y &key future)
   (:documentation "Place a new element in the universe"))
 
-(defgeneric place-static-element-at (universe static-element x y)
+(defgeneric get-elt-at (universe element-type x y &key future)
+  (:documentation "Get the (first) element of type 'element-type' at coords. x,y"))
+
+(defgeneric place-static-elt-at (universe static-element x y)
   (:documentation "Place a static element in the universe"))
 
 
-(defmethod empty ((universe universe) x y future)
+(defmethod empty-p ((universe universe) x y future)
+  "Return true if the specified array does not contain blocking elements at the
+  specified coordinates"
   (when (and (>= x 0) (>= y 0) (< x (size universe)) (< y (size universe)))
-    (return-from empty
-      (and (null (aref (u-array-static universe) x y))
-           (if future
-               (emptyp-universe-array (u-array-future universe) x y)
-               (emptyp-universe-array (u-array universe) x y)))))
+    (let ((array (if future (u-array-future universe) (u-array universe))))
+      (return-from empty-p
+        (and (null (aref (u-array-static universe) x y))
+             (every 'empty-element-p (aref array x y))))))
   nil)
 
 
-(defun emptyp-universe-array (universe-array x y)
-  "Return true if the specified array does not contain blocking elements at the
-  specified coordinates"
-  (or (null (aref universe-array x y))
-      (eql (type-of (aref universe-array x y)) 'pheromone)))
+(defun empty-element-p (elt)
+  (or (null elt)
+      (eql (type-of elt) 'pheromone)))
+
+
+(defun print-elements (elt-list stream)
+  (cond
+    ((null elt-list)
+     (format stream " "))
+    ((eql (length elt-list) 1)
+     (let ((elt (first elt-list)))
+       (cond
+         ((or (null elt) (and (numberp elt) (zerop elt)))
+          (format stream " "))
+         ((eql (type-of elt) 'ANT)
+          (format stream "A"))
+         ((eql (type-of elt) 'pheromone)
+          (format stream "."))
+         ((typep elt 'static-element)
+          (cond
+            ((equal elt 'rock)
+             (format stream "R"))
+            ;;(t
+            ;;(format stream "+"))
+            ))
+         (t
+          (format stream "?")))))
+    (t
+     (format stream "*"))))
 
 
 (defmethod print-object ((universe universe) stream)
@@ -125,32 +153,26 @@
       (dotimes (x (size universe))
         (format stream "~2a|" x)
         (dotimes (y (size universe))
-          (let ((elt (aref universe-side x y)))
-            (cond
-              ((or (null elt) (and (numberp elt) (zerop elt)))
-               (format stream " "))
-              ((eql (type-of elt) 'ANT)
-               (format stream "A"))
-              ((eql (type-of elt) 'pheromone)
-               (format stream "."))
-              ((typep elt 'static-element)
-               (cond
-                 ((equal elt 'rock)
-                  (format stream "*"))
-                 (t
-                  (format stream "+"))))
-              (t
-               (format stream "?")))))
+          (let ((elt-list (aref universe-side x y)))
+            (print-elements elt-list stream)))
         (format stream "|")
-        (terpri))
+        (terpri stream))
       (setf u-name (cdr u-name)))))
 
 
-(defmethod place-static-element-at ((universe universe) element x y)
+(defmethod place-static-elt-at ((universe universe) element x y)
   (if (typep element 'static-element)
       (setf (aref (u-array-static universe) x y) element)
       (error "The element is not a static element")))
  
+
+(defmethod get-elt-at ((universe universe) element-type x y &key (future nil))
+  (let ((array (if future (u-array-future universe) (u-array universe))))
+    (dolist (elt (aref array x y))
+      (when (eql (type-of elt) element-type)
+        (return-from get-elt-at elt)))
+    nil))
+
 
 (defclass ant ()
   ((x-pos
@@ -300,7 +322,7 @@ reached its maximum age or some other cataclysm has happened."))
     (ant-log 5 "current params: x=" (x ant) " y=" (y ant) " x-step=" x-step " y-step=" y-step)
     (ant-log 4 "candidate positions for ant: " x-new "," y-new)
     ;; check free space
-    (if (empty universe x-new-int y-new-int t)
+    (if (empty-p universe x-new-int y-new-int t)
         (progn
           (place-elt-at universe ant x-new-int y-new-int :future t)
           (setf (x ant) x-new)
@@ -380,17 +402,27 @@ reached its maximum age or some other cataclysm has happened."))
       (ant-move-random-or-det ant universe)))
 
 
-(defmethod place-elt-at ((universe universe) (ant ant) x y &key (future t))
+(defmethod passing-time ((universe universe) (phe pheromone))
+  (ant-log 2 "pheromone in action (no action :todo:)"))
+
+
+(defmethod place-elt-at ((universe universe) (elt standard-object) x y &key (future t))
   (let ((array (if future (u-array-future universe) (u-array universe)))
         (list (if future (dyn-elt-future universe) (dyn-elt-present universe))))
-    (ant-log 3 "placing a new ant at " x "," y)
-    (ant-log 3 "direction: " (radtod (direction ant)))
-    (setf (aref array x y) ant)
+    (ant-log 3 "placing a new element at " x "," y " in "
+             (if future "future" "present"))
+    (when (eql (type-of elt) 'ant)
+      (ant-log 3 "direction (of ant): " (radtod (direction elt))))
+    (if (null (aref array x y))
+        (setf (aref array x y) (list elt))
+        (progn
+          (nconc (aref array x y) (list elt))
+          (ant-log 5 "concat. with previous elements")))
     (if list
-      (nconc list (list ant))
+      (nconc list (list elt))
       (if future
-          (setf (dyn-elt-future universe) (list ant))
-          (setf (dyn-elt-present universe) (list ant))))))
+          (setf (dyn-elt-future universe) (list elt))
+          (setf (dyn-elt-present universe) (list elt))))))
 
 
 ;;; * emacs display settings *

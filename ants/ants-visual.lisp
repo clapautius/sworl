@@ -25,6 +25,16 @@
 (defgeneric display-entity (window entity x y)
   (:documentation "Display the specified entity in the OpenGL window"))
 
+(defgeneric display-entity-list (window ent-list x y)
+  (:documentation "Display every entity at coords. x,y"))
+
+
+(defmethod display-entity-list ((window u-window) list x y)
+  "Display every element from the list (located at coord. x,y)"
+  (dolist (elt list)
+	(display-entity window elt x y)))
+
+
 (defmethod display-entity ((window u-window) (entity ant) x y)
   (let ((preferred-color (color entity)))
 	(cond
@@ -51,17 +61,14 @@
 	  ((equal st-elt 'rock)
 	   (gl:color 0.5 0.5 0.5)
 	   (gl:with-primitive :polygon
-		 (gl:vertex x y)
-		 (gl:vertex (+ x 0.99) y)
-		 (gl:vertex  (+ x 0.99) (+ y 0.99))
-		 (gl:vertex x (+ y 0.99))))
-	  (t
-	   (gl:color 1 1 0)
-	   (gl:with-primitive :polygon
-		 (gl:vertex x y)
-		 (gl:vertex (+ x 0.99) y)
-		 (gl:vertex  (+ x 0.99) (+ y 0.99))
-		 (gl:vertex x (+ y 0.99)))))))
+		 (gl:vertex x y) (gl:vertex (+ x 0.99) y)
+		 (gl:vertex  (+ x 0.99) (+ y 0.99)) (gl:vertex x (+ y 0.99))))
+	  ;;(t
+	   ;;(gl:color 1 1 0)
+	   ;;(gl:with-primitive :polygon
+		 ;;(gl:vertex x y) (gl:vertex (+ x 0.99) y) 
+		 ;;(gl:vertex  (+ x 0.99) (+ y 0.99)) (gl:vertex x (+ y 0.99))))
+	  )))
 
 
 (defmethod glut:keyboard ((window u-window) key x y)
@@ -80,9 +87,9 @@
 	(gl:clear :color-buffer))
   (dotimes (x (size (universe w)))
 	(dotimes (y (size (universe w)))
-	  (unless (null (aref (u-array (universe w)) x y))
-		(display-entity w (aref (u-array (universe w)) x y) x y))
-	  (unless (null (aref (u-array-static (universe w)) x y))
+	  (when (aref (u-array (universe w)) x y)
+		(display-entity-list w (aref (u-array (universe w)) x y) x y))
+	  (when (aref (u-array-static (universe w)) x y)
 		(display-static-element w (aref (u-array-static (universe w)) x y) x y))))
   (glut:swap-buffers))
 
