@@ -1,9 +1,10 @@
 (in-package :sworl.ants)
 
+(declaim (optimize debug))
 
 ;;; logging
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *ant-log-level* 0))
+  (defparameter *ant-log-level* 5))
 
 (defmacro ant-log (log-level &rest print-list)
   (if (<= log-level *ant-log-level*)
@@ -104,32 +105,45 @@
     (return-from empty
       (and (null (aref (u-array-static universe) x y))
            (if future
-               (null (aref (u-array-future universe) x y))
-               (null (aref (u-array universe) x y))))))
+               (emptyp-universe-array (u-array-future universe) x y)
+               (emptyp-universe-array (u-array universe) x y)))))
   nil)
 
 
+(defun emptyp-universe-array (universe-array x y)
+  "Return true if the specified array does not contain blocking elements at the
+  specified coordinates"
+  (or (null (aref universe-array x y))
+      (eql (type-of (aref universe-array x y)) 'pheromone)))
+
+
 (defmethod print-object ((universe universe) stream)
-  (dolist (universe-side (list (u-array-static universe) (u-array universe)
-                               (u-array-future universe)))
-    (format stream "Side:~%")
-    (dotimes (x (size universe))
-      (dotimes (y (size universe))
-        (let ((elt (aref universe-side x y)))
-          (cond
-            ((or (null elt) (and (numberp elt) (zerop elt)))
-             (format stream "   "))
-            ((eql (type-of elt) 'ANT)
-             (format stream " A "))
-            ((typep elt 'static-element)
-             (cond
-               ((equal elt 'rock)
-                (format stream " * "))
-               (t
-              (format stream " . "))))
-            (t
-             (format stream " ? ")))))
-      (terpri))))
+  (let ((u-name (list "static" "present" "future")))
+    (dolist (universe-side (list (u-array-static universe) (u-array universe)
+                                 (u-array-future universe)))
+      (format stream "*** Side: ~a~%" (car u-name))
+      (dotimes (x (size universe))
+        (format stream "~2a|" x)
+        (dotimes (y (size universe))
+          (let ((elt (aref universe-side x y)))
+            (cond
+              ((or (null elt) (and (numberp elt) (zerop elt)))
+               (format stream " "))
+              ((eql (type-of elt) 'ANT)
+               (format stream "A"))
+              ((eql (type-of elt) 'pheromone)
+               (format stream "."))
+              ((typep elt 'static-element)
+               (cond
+                 ((equal elt 'rock)
+                  (format stream "*"))
+                 (t
+                  (format stream "+"))))
+              (t
+               (format stream "?")))))
+        (format stream "|")
+        (terpri))
+      (setf u-name (cdr u-name)))))
 
 
 (defmethod place-static-element-at ((universe universe) element x y)
@@ -159,6 +173,12 @@
     :initform 1.57 ; by default go up
     :accessor direction)
 
+   (id
+    :documentation "A unique identification string"
+    :initarg :id
+    :initform nil
+    :reader id)
+
    ;; x-step & y-step are float values representing the exact value of a step on
    ;; x and y axis
    (x-step
@@ -174,6 +194,39 @@
   (:documentation "Ant class"))
 
 
+(defclass pheromone ()
+  ((x-pos
+    :initarg :x
+    :initform 0
+    :accessor x)
+   (y-pos
+    :initarg :y
+    :initform 0
+    :accessor y)
+
+   (ph-type
+    :documentation "Possible values: generic, food"
+    :initarg :ph-type
+    :initform 'generic
+    :accessor ph-type)
+
+   (age
+    :initform 0
+    :accessor age)
+   (age-max
+    :initform 10
+    :initarg :age-max
+    :accessor age-max)
+
+   (intensity
+    :initarg :intensity
+    :initform 0
+    :accessor intensity))
+
+  (:documentation "Pheromone class"))
+
+
+    
 (defgeneric entity-change-dir (entity degrees)
   (:documentation "Change the entity direction with 'degrees' degrees"))
 
@@ -189,7 +242,7 @@
   (setf (slot-value ant 'y-step) (* (step-size ant) (sin (direction ant)))))
 
 (defmethod print-object ((ant ant) stream)
-  (format stream "ANT(~a,~a)" (x ant) (y ant)))
+  (format stream "ANT(~a)[~a,~a]" (or (id ant) "noname") (x ant) (y ant)))
 
 
 (defmethod entity-change-dir ((ant ant) rad)

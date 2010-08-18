@@ -14,9 +14,12 @@
 
   
 (defun ants-test-all ()
-  (let ((test-universe (make-instance 'universe :size 5 :max-age 10))
-		(ant1 (make-instance 'ant :x 2 :y 2 :direction (dtorad 45) :step-size 1.4))
-		(ant2 (make-instance 'ant :x 1 :y 2 :direction (dtorad 45) :step-size 1.4))
+  (let ((test-universe (make-instance 'universe :size 5 :max-age 10
+                                      :ant-move-func 'ant-move-deterministic))
+		(ant1 (make-instance 'ant :x 2 :y 2 :direction (dtorad 45)
+                             :step-size 1.4 :id "ant1"))
+		(ant2 (make-instance 'ant :x 1 :y 2 :direction (dtorad 45)
+                             :step-size 1.4 :id "ant2"))
         (error-flag nil))
 	(place-elt-at test-universe ant1 2 2 :future nil)
 	(place-elt-at test-universe ant2 1 2 :future nil)

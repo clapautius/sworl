@@ -42,8 +42,7 @@
 	  (gl:vertex x y)
 	  (gl:vertex (+ x 0.99) (+ y 0.99))
 	  (gl:vertex x (+ y 0.99))
-	  (gl:vertex (+ x 0.99) y))
-))
+	  (gl:vertex (+ x 0.99) y))))
 
 
 (defmethod display-static-element ((window u-window) st-elt x y)
