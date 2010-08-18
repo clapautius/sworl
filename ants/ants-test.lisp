@@ -18,8 +18,8 @@
 		(ant1 (make-instance 'ant :x 2 :y 2 :direction (dtorad 45) :step-size 1.4))
 		(ant2 (make-instance 'ant :x 1 :y 2 :direction (dtorad 45) :step-size 1.4))
         (error-flag nil))
-	(place-elt-at test-universe ant1 2 2 :future nil)
-	(place-elt-at test-universe ant2 1 2 :future nil)
+	(place-element-at test-universe ant1 2 2 :future nil)
+	(place-element-at test-universe ant2 1 2 :future nil)
 
 	;; advance one sec.
 	(passing-time-universal test-universe)
@@ -63,12 +63,12 @@
           (get-free-space universe))
         (when (null x-empty)
           (error "Universe is full"))
-        (place-elt-at universe
-                      (if random-direction
-                          (make-instance 'ant :x x-empty :y y-empty
-                                         :direction (dtorad (random 360)))
-                          (make-instance 'ant :x x-empty :y y-empty))
-                      x-empty y-empty :future nil)
+        (place-element-at universe
+                          (if random-direction
+                              (make-instance 'ant :x x-empty :y y-empty
+                                             :direction (dtorad (random 360)))
+                              (make-instance 'ant :x x-empty :y y-empty))
+                          x-empty y-empty :future nil)
         (ant-log 3 "placing a new ant at " x-empty "," y-empty)
         (ant-log 3 "direction: " (direction (aref (u-array universe) x-empty y-empty)))))))
 
@@ -152,7 +152,7 @@
   (ants-post-run))
 
 
-(defun ants-run-opengl-many-random (&key (size 500) (ants 20) (duration 1500)
+(defun ants-run-opengl-many-random (&key (size 500) (ants 20) (duration 500)
                                     (function nil))
   "Simulation with many ants with random positions and random directions"
   (let* ((*random-state* (make-random-state t))
