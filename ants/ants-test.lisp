@@ -1,8 +1,10 @@
 (in-package :sworl.ants)
 
-(defmacro test-case (test &optional (string "Testing "))
+(declaim (optimize debug))
+
+(defmacro test-case (test &optional (string "Testing: "))
   `(progn
-     (format t "  ~a ~a ..." ,string ',test)
+     (format t "~a~%  ~a ..." ,string ',test)
      (if ,test
          (progn
            (format t " OK~%")
@@ -13,7 +15,7 @@
            nil))))
 
 
-(defun ants-test-all-universe ()
+(defun ants-make-test-universe ()
   "Generate universe used by 'ants-test-all'"
   (let ((test-universe (make-instance 'universe :size 5 :max-age 10
                                       :ant-move-func 'ant-move-deterministic))
@@ -36,7 +38,7 @@
 
 
 (defun ants-test-all ()
-  (let* ((test-universe (ants-test-all-universe))
+  (let* ((test-universe (ants-make-test-universe))
          (error-flag nil)
          (ant2 (get-elt-at test-universe 'ant 1 2))
          (phe4 (get-elt-at test-universe 'pheromone 1 1)))
@@ -56,6 +58,10 @@
     (test-case (empty-p test-universe 0 0 nil))
     (test-case (empty-p test-universe 1 1 nil))
     (test-case (eq (get-elt-at test-universe 'pheromone 1 1) phe4))
+    ;; delete a pheromone
+    (delete-elt-at test-universe 'pheromone 1 1 :future nil)
+    (test-case (null (get-elt-at test-universe 'pheromone 1 1 :future nil))
+               "Testing empty cell after removing pheromone: ")
 
     (test-case (not (empty-p test-universe 1 0 nil))
                "Testing static elt: ")
@@ -103,7 +109,8 @@
                           (make-instance 'ant :x x-empty :y y-empty))
                       x-empty y-empty :future nil)
         (ant-log 3 "placing a new ant at " x-empty "," y-empty)
-        (ant-log 3 "direction: " (direction (aref (u-array universe) x-empty y-empty)))))))
+        (ant-log 3 "direction: " (direction (aref (u-array universe)
+                                                  x-empty y-empty)))))))
 
 
 ;;; testing functions
@@ -199,14 +206,18 @@
 
 
 (defun ants-run-opengl-face-to-face (&key (duration 150))
-  "Run the simulation"
-  (let ((universe (make-instance 'universe :size 201 :max-age duration))
-        (ant1 (make-instance 'ant :x 0 :y 100 :direction 0))
-        (ant2 (make-instance 'ant :x 200 :y 100 :direction (dtorad 180) :color
-                             'blue)))
+  "Run the simulation (two ants walking towards each other)"
+  (let ((universe (make-instance 'universe :size 201 :max-age duration
+                                 :ant-move-func 'ant-move-deterministic))
+        (ant1 (make-instance 'ant :x 0 :y 100 :direction 0
+                             :id "left2right" :ant-pheromone-fn 'ant-phe-fn-1))
+        (ant2 (make-instance 'ant :x 200 :y 100 :direction (dtorad 180)
+                             :id "right2left" :color 'green))
+        (phe1 (make-instance 'pheromone :x 100 :y 100 :age-max 50)))
     (ants-pre-run universe 2)
     (place-elt-at universe ant1 0 100 :future nil)
     (place-elt-at universe ant2 200 100 :future nil)
+    (place-elt-at universe phe1 100 100 :future nil)
     (glut:display-window (make-instance 'u-window :width 201 :height 201
                                         :pause 0.05 :universe universe)))
   (ants-post-run))

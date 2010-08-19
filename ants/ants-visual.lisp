@@ -1,5 +1,7 @@
 (in-package :sworl.ants)
 
+(declaim (optimize debug))
+
 
 (defclass u-window (glut:window)
   ((universe
@@ -36,6 +38,7 @@
 
 
 (defmethod display-entity ((window u-window) (entity ant) x y)
+  ;;(break)
   (let ((preferred-color (color entity)))
 	(cond
 	  ((eql preferred-color 'red)
@@ -55,11 +58,22 @@
 	  (gl:vertex (+ x 0.99) y))))
 
 
+(defmethod display-entity ((window u-window) (entity pheromone) x y)
+  ;;(break)
+  (cond
+	((eql (ph-type entity) 'generic)
+	 (let ((grey (/ (intensity entity) 10)))
+	   (gl:color grey grey grey)
+	   (gl:with-primitive :polygon
+		 (gl:vertex x y) (gl:vertex (+ x 0.99) y)
+		 (gl:vertex  (+ x 0.99) (+ y 0.99)) (gl:vertex x (+ y 0.99)))))))
+	   
+
 (defmethod display-static-element ((window u-window) st-elt x y)
   (when (typep st-elt 'static-element)
 	(cond
 	  ((equal st-elt 'rock)
-	   (gl:color 0.5 0.5 0.5)
+	   (gl:color 1 0.5 0.5)
 	   (gl:with-primitive :polygon
 		 (gl:vertex x y) (gl:vertex (+ x 0.99) y)
 		 (gl:vertex  (+ x 0.99) (+ y 0.99)) (gl:vertex x (+ y 0.99))))

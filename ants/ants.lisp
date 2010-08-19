@@ -69,11 +69,10 @@
    :initform nil
    :accessor dyn-elt-present)
 
-   (ant-move-func
+   (ant-move-func ; :todo: rename to ant-move-fn
     :initarg :ant-move-func
     :initform nil
-    :reader ant-move-func)
-   )
+    :reader ant-move-func))
 
   (:documentation "An universe for ants"))
 
@@ -99,6 +98,9 @@
 (defgeneric get-elt-at (universe element-type x y &key future)
   (:documentation "Get the (first) element of type 'element-type' at coords. x,y"))
 
+(defgeneric delete-elt-at (universe element-type x y &key future)
+  (:documentation "Remove the specified element from universe"))
+
 (defgeneric place-static-elt-at (universe static-element x y)
   (:documentation "Place a static element in the universe"))
 
@@ -119,12 +121,19 @@
       (eql (type-of elt) 'pheromone)))
 
 
-(defun print-elements (elt-list stream)
+(defun print-elements (elements stream)
   (cond
-    ((null elt-list)
+    ((null elements)
      (format stream " "))
-    ((eql (length elt-list) 1)
-     (let ((elt (first elt-list)))
+    ((typep elements 'static-element)
+     (cond
+       ((equal elements 'rock)
+        (format stream "R"))
+       ;;(t
+       ;;(format stream "+"))
+       ))
+    ((eql (length elements) 1)
+     (let ((elt (first elements)))
        (cond
          ((or (null elt) (and (numberp elt) (zerop elt)))
           (format stream " "))
@@ -132,13 +141,6 @@
           (format stream "A"))
          ((eql (type-of elt) 'pheromone)
           (format stream "."))
-         ((typep elt 'static-element)
-          (cond
-            ((equal elt 'rock)
-             (format stream "R"))
-            ;;(t
-            ;;(format stream "+"))
-            ))
          (t
           (format stream "?")))))
     (t
@@ -166,7 +168,7 @@
       (error "The element is not a static element")))
  
 
-(defmethod get-elt-at ((universe universe) element-type x y &key (future nil))
+(defmethod get-elt-at ((universe universe) element-type x y &key future)
   (let ((array (if future (u-array-future universe) (u-array universe))))
     (dolist (elt (aref array x y))
       (when (eql (type-of elt) element-type)
@@ -207,6 +209,11 @@
     :reader x-step)
    (y-step
     :reader y-step)
+
+   (ant-pheromone-fn
+    :initarg :ant-pheromone-fn
+    :initform nil
+    :reader ant-pheromone-fn)
 
    (preferred-color
     :initarg :color
@@ -265,6 +272,11 @@
 
 (defmethod print-object ((ant ant) stream)
   (format stream "ANT(~a)[~a,~a]" (or (id ant) "noname") (x ant) (y ant)))
+
+
+(defmethod print-object ((phe pheromone) stream)
+  (format stream "PHE[~a,~a,age=~a,max-age=~a,int=~a]" (x phe) (y phe) (age phe)
+          (age-max phe) (intensity phe)))
 
 
 (defmethod entity-change-dir ((ant ant) rad)
@@ -399,14 +411,29 @@ reached its maximum age or some other cataclysm has happened."))
         (ant-log 5 "calling custom func " (ant-move-func universe)
                  " for moving ant")
         (funcall (ant-move-func universe) ant universe))
-      (ant-move-random-or-det ant universe)))
+      (ant-move-random-or-det ant universe))
+  (when (ant-pheromone-fn ant)
+    (ant-log 5 "calling pheromone func")
+    (funcall (ant-pheromone-fn ant) ant universe)))
 
 
 (defmethod passing-time ((universe universe) (phe pheromone))
-  (ant-log 2 "pheromone in action (no action :todo:)"))
+  (ant-log 2 "pheromone in action")
+  (if (> (age phe) (age-max phe))
+      (progn
+        (ant-log 3 "pheromone " phe " has reached its max. age")
+        ;;(delete-elt-at universe 'pheromone (x phe) (y phe) :future nil)
+        )
+      (progn
+        (setf (intensity phe) (* (/ (- (age-max phe) (age phe))
+                                    (age-max phe)) 10))
+        (incf (age phe))
+        (place-elt-at universe phe (x phe) (y phe) :future t)
+        (ant-log 5 "pheromone " phe " after passing time."))))
+        
 
-
-(defmethod place-elt-at ((universe universe) (elt standard-object) x y &key (future t))
+(defmethod place-elt-at ((universe universe) (elt standard-object) x y
+                         &key (future t))
   (let ((array (if future (u-array-future universe) (u-array universe)))
         (list (if future (dyn-elt-future universe) (dyn-elt-present universe))))
     (ant-log 3 "placing a new element at " x "," y " in "
@@ -423,6 +450,33 @@ reached its maximum age or some other cataclysm has happened."))
       (if future
           (setf (dyn-elt-future universe) (list elt))
           (setf (dyn-elt-present universe) (list elt))))))
+
+(defmethod delete-elt-at ((universe universe) elt-type x y &key future)
+  (let ((elt (get-elt-at universe elt-type x y :future future)))
+    (ant-log 3 "Removing an element of type " elt-type " from coords. "
+             x "," y " in " (if future "future" "present"))
+    (if elt
+        (if future
+            (progn
+              (setf (dyn-elt-future universe)
+                    (remove elt (dyn-elt-future universe) :test #'eq))
+              (setf (aref (u-array-future universe) x y)
+                    (remove elt (aref (u-array-future universe) x y) :test #'eq)))
+            (progn
+              (setf (dyn-elt-present universe)
+                    (remove elt (dyn-elt-present universe) :test #'eq))
+              (setf (aref (u-array universe) x y)
+                    (remove elt (aref (u-array universe) x y) :test #'eq))))
+        (ant-log 3 "Nothing to remove at coords. " x "," y))))
+      
+
+(defun ant-phe-fn-1 (ant universe)
+  "Ant leaving pheromone trails"
+  (let ((x (round (x ant)))
+        (y (round (y ant))))
+    (place-elt-at universe
+                  (make-instance 'pheromone :x x :y y :age-max 10)
+                  x y :future t)))
 
 
 ;;; * emacs display settings *
