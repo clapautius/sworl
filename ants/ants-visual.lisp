@@ -33,7 +33,9 @@
 
 (defmethod display-entity-list ((window u-window) list x y)
   "Display every element from the list (located at coord. x,y)"
-  (dolist (elt list)
+  ;; first draw the pheromones, than the ants
+  (dolist (elt (sort list (lambda (x y) (and (eql (type-of x) 'pheromone)
+											 (eql (type-of y) 'ant)))))
 	(display-entity window elt x y)))
 
 
@@ -50,12 +52,15 @@
 	  ((eql preferred-color 'yellow)
 	   (gl:color 1 1 0))
 	  (t
-	   (gl:color 1 1 1)))
-	(gl:with-primitive :lines
-	  (gl:vertex x y)
-	  (gl:vertex (+ x 0.99) (+ y 0.99))
-	  (gl:vertex x (+ y 0.99))
-	  (gl:vertex (+ x 0.99) y))))
+	   (gl:color 1 0 0)))
+	(gl:with-primitive :polygon
+	  (gl:vertex x y) (gl:vertex (+ x 0.99) y)
+	  (gl:vertex  (+ x 0.99) (+ y 0.99)) (gl:vertex x (+ y 0.99)))))
+	;;(gl:with-primitive :lines
+	  ;;(gl:vertex x y)
+	  ;;(gl:vertex (+ x 0.99) (+ y 0.99))
+	  ;;(gl:vertex x (+ y 0.99))
+	  ;;(gl:vertex (+ x 0.99) y))))
 
 
 (defmethod display-entity ((window u-window) (entity pheromone) x y)

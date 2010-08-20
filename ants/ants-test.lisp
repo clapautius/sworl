@@ -23,20 +23,22 @@
                              :step-size 1.4 :id "ant1"))
 		(ant2 (make-instance 'ant :x 1 :y 2 :direction (dtorad 45)
                              :step-size 1.4 :id "ant2"))
-        (phe1 (make-instance 'pheromone :x 2 :y 2 :age-max 5))
-        (phe2 (make-instance 'pheromone :x 0 :y 0 :age-max 5))
-        (phe3 (make-instance 'pheromone :x 0 :y 0 :age-max 3 :intensity 7))
-        (phe4 (make-instance 'pheromone :x 1 :y 1 :age-max 3 :intensity 5)))
+        (phe1 (make-instance 'pheromone :x 2 :y 2 :intensity 5))
+        (phe2 (make-instance 'pheromone :x 0 :y 0 :intensity 5))
+        (phe3 (make-instance 'pheromone :x 0 :y 0 :intensity 7))
+        (phe4 (make-instance 'pheromone :x 1 :y 1 :intensity 8
+                             :decrease-rate (lambda (x) (/ x 2)))))
     (place-elt-at test-universe phe1 2 2 :future nil)
 	(place-elt-at test-universe ant1 2 2 :future nil)
 	(place-elt-at test-universe ant2 1 2 :future nil)
     (place-elt-at test-universe phe2 0 0 :future nil)
     (place-elt-at test-universe phe3 0 0 :future nil)
-    (place-elt-at test-universe phe4 0 0 :future nil)
+    (place-elt-at test-universe phe4 1 1 :future nil)
     (place-static-elt-at test-universe 'rock 1 0)
     test-universe))
 
 
+;;; :todo: - add tests with pheromone owner, replacing owner, etc.
 (defun ants-test-all ()
   (let* ((test-universe (ants-make-test-universe))
          (error-flag nil)
@@ -55,9 +57,11 @@
 	(test-case (not (empty-p test-universe 3 3 nil)))
 	(test-case (and (= (round (x ant2)) 1) (= (round (y ant2)) 4)))
     ;; check pheromones
+    (test-case (not (null phe4)))
     (test-case (empty-p test-universe 0 0 nil))
     (test-case (empty-p test-universe 1 1 nil))
-    (test-case (eq (get-elt-at test-universe 'pheromone 1 1) phe4))
+    (test-case (and phe4 (eq (get-elt-at test-universe 'pheromone 1 1) phe4)))
+    (test-case (and phe4 (eql (intensity phe4) 4)))
     ;; delete a pheromone
     (delete-elt-at test-universe 'pheromone 1 1 :future nil)
     (test-case (null (get-elt-at test-universe 'pheromone 1 1 :future nil))
@@ -124,10 +128,10 @@
               (place-elt-at universe
                             (if random-direction
                                 (make-instance 'ant :x x-proposed :y y-proposed
-                                               :color color
+                                               :color color :ant-pheromone-fn 'ant-phe-fn-2
                                                :direction (dtorad (random 360)))
                                 (make-instance 'ant :x x-proposed :y y-proposed
-                                               :color color))
+                                               :color color :ant-pheromone-fn 'ant-phe-fn-2))
                             x-proposed y-proposed :future nil))
          t)
       (setf x-proposed (random (size universe)))
@@ -201,23 +205,25 @@
     (ants-pre-run universe ants)
     (generate-ants-random ants universe t)
     (glut:display-window (make-instance 'u-window :width size :height size
-                                        :universe universe :keep-trails t)))
+                                        :universe universe :keep-trails nil)))
   (ants-post-run))
 
 
 (defun ants-run-opengl-face-to-face (&key (duration 150))
   "Run the simulation (two ants walking towards each other)"
   (let ((universe (make-instance 'universe :size 201 :max-age duration
-                                 :ant-move-func 'ant-move-deterministic))
+                                 :ant-move-func 'ant-move-follow-phe-det))
         (ant1 (make-instance 'ant :x 0 :y 100 :direction 0
-                             :id "left2right" :ant-pheromone-fn 'ant-phe-fn-1))
+                             :id "left2right" :ant-pheromone-fn 'ant-phe-fn-2))
         (ant2 (make-instance 'ant :x 200 :y 100 :direction (dtorad 180)
                              :id "right2left" :color 'green))
-        (phe1 (make-instance 'pheromone :x 100 :y 100 :age-max 50)))
+        (phe1 (make-instance 'pheromone :x 100 :y 100 :intensity 50)))
     (ants-pre-run universe 2)
     (place-elt-at universe ant1 0 100 :future nil)
     (place-elt-at universe ant2 200 100 :future nil)
     (place-elt-at universe phe1 100 100 :future nil)
+    (place-phe-around universe 90 110 5)
+    ;;(break)
     (glut:display-window (make-instance 'u-window :width 201 :height 201
                                         :pause 0.05 :universe universe)))
   (ants-post-run))
