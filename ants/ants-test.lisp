@@ -121,21 +121,23 @@
 (defun generate-ants-random (number universe &optional (random-direction nil))
   "Generate <number> ants and place them in the universe"
   (dotimes (i number)
-    (do ((x-proposed (random (size universe)))
-         (y-proposed (random (size universe)))
-         (color (nth (random 5) (list 'red 'green 'blue 'yellow 'white))))
-        ((and (empty-p universe x-proposed y-proposed nil)
-              (place-elt-at universe
-                            (if random-direction
-                                (make-instance 'ant :x x-proposed :y y-proposed
-                                               :color color :ant-pheromone-fn 'ant-phe-fn-2
-                                               :direction (dtorad (random 360)))
-                                (make-instance 'ant :x x-proposed :y y-proposed
-                                               :color color :ant-pheromone-fn 'ant-phe-fn-2))
-                            x-proposed y-proposed :future nil))
-         t)
-      (setf x-proposed (random (size universe)))
-      (setf y-proposed (random (size universe))))))
+    (loop 
+       (let ((x-proposed (random (size universe)))
+             (y-proposed (random (size universe)))
+             (color (nth (random 6) (list 'red 'green 'blue 'yellow 'cyan 'magenta)))
+             (name (format nil "ant~a" i)))
+         (when (empty-p universe x-proposed y-proposed nil)
+           (let ((ant (if random-direction
+                          (make-instance 'ant :x x-proposed :y y-proposed
+                                         :id name :color color
+                                         :ant-pheromone-fn 'ant-phe-fn-2
+                                         :direction (dtorad (random 360)))
+                          (make-instance 'ant :x x-proposed :y y-proposed
+                                         :id name :color color
+                                         :ant-pheromone-fn 'ant-phe-fn-2))))
+             (place-elt-at universe ant x-proposed y-proposed :future nil)
+             (ant-log 3 "New ant generated: " ant "; color=" (color ant)))
+           (return t))))))
 
 
 (defun ants-pre-run (universe ants-no &optional (opengl t))
@@ -211,20 +213,20 @@
 
 (defun ants-run-opengl-face-to-face (&key (duration 150))
   "Run the simulation (two ants walking towards each other)"
-  (let ((universe (make-instance 'universe :size 201 :max-age duration
+  (let ((universe (make-instance 'universe :size 150 :max-age duration
                                  :ant-move-func 'ant-move-follow-phe-det))
-        (ant1 (make-instance 'ant :x 0 :y 100 :direction 0
-                             :id "left2right" :ant-pheromone-fn 'ant-phe-fn-2))
-        (ant2 (make-instance 'ant :x 200 :y 100 :direction (dtorad 180)
-                             :id "right2left" :color 'green))
-        (phe1 (make-instance 'pheromone :x 100 :y 100 :intensity 50)))
+        (ant1 (make-instance 'ant :x 75 :y 100 :direction 0
+                             :id "left2right" :ant-pheromone-fn 'ant-phe-fn-2
+                             :color 'red))
+        (ant2 (make-instance 'ant :x 125 :y 100 :direction (dtorad 180)
+                             :id "right2left" :ant-pheromone-fn 'ant-phe-fn-2
+                             :color 'green)))
     (ants-pre-run universe 2)
-    (place-elt-at universe ant1 0 100 :future nil)
-    (place-elt-at universe ant2 200 100 :future nil)
-    (place-elt-at universe phe1 100 100 :future nil)
-    (place-phe-around universe 90 110 5)
+    (place-elt-at universe ant1 75 100 :future nil)
+    (place-elt-at universe ant2 125 100 :future nil)
     ;;(break)
-    (glut:display-window (make-instance 'u-window :width 201 :height 201
+    (glut:display-window (make-instance 'u-window :width (size universe)
+                                        :height (size universe)
                                         :pause 0.05 :universe universe)))
   (ants-post-run))
 

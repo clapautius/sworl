@@ -9,8 +9,16 @@
                                   (cons  0   1) (cons  1  1)))
 
 ;;; logging
+;;; 0 - errors (always)
+;;; 1 - warnings
+;;; 2 - info low
+;;; 3 - info medium (entering / exiting functions)
+;;; 4 - etc
+;;; 5 - objects
+;;; 6 - objects frequently used
+;;; 7 - usually temp stuff (probably not used after implementation)
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *ant-log-level* 2))
+  (defparameter *ant-log-level* 5))
 
 (defmacro ant-log (log-level &rest print-list)
   (if (<= log-level *ant-log-level*)
@@ -19,7 +27,7 @@
          ,(when (plusp log-level)
                 `(dotimes (i ,log-level) (format t " ")))
          ,(when (>= log-level 3)
-                `(format t ":debug:"))
+                `(format t ":debug: "))
          (let ((eol t))
            (dolist (p (list ,@print-list))
              (if (eql p ':no-eol)
@@ -39,6 +47,25 @@
 
 
 (deftype static-element () "Static elements in the universe." '(member rock))
+
+(defun coords-in-list (x y list)
+  (some (lambda (p) (equal (cons x y) p)) list))
+
+(defun min-max-with-pos (list)
+  (let ((min (first list)) (max (first list))
+        (min-pos 0) (max-pos 0)
+        (pos 0))
+    (dolist (elt list)
+      (when (not (eq elt (first list)))
+        (when (< elt min)
+          (setf min elt)
+          (setf min-pos pos))
+        (when (> elt max)
+          (setf max elt)
+          (setf max-pos pos)))
+      (incf pos))
+    (values-list (list min min-pos max max-pos))))
+
 
 (defclass universe ()
   ((size
@@ -205,6 +232,11 @@
     :initform 1.57 ; by default go up
     :accessor direction)
 
+   (history
+    :documentation "Used to avoid following its own tracks"
+    :initform nil
+    :accessor history)
+
    (id
     :documentation "A unique identification string"
     :initarg :id
@@ -283,7 +315,8 @@
 ;; fixme: - these values should be computed again if direction is modified
 (defmethod initialize-instance :after ((ant ant) &key)
   (setf (slot-value ant 'x-step) (* (step-size ant) (cos (direction ant))))
-  (setf (slot-value ant 'y-step) (* (step-size ant) (sin (direction ant)))))
+  (setf (slot-value ant 'y-step) (* (step-size ant) (sin (direction ant))))
+  (setf (history ant) (list (cons (x ant) (y ant)))))
 
 (defmethod print-object ((ant ant) stream)
   (format stream "ANT(~a)[~a,~a]" (or (id ant) "noname") (x ant) (y ant)))
@@ -431,15 +464,28 @@ reached its maximum age or some other cataclysm has happened."))
 (defun ant-try-follow-phe (ant universe)
   "Try to follow pheromone trails"
   ;; :todo: check intensity
-  (let ((x (round (x ant))) (y (round (y ant))))
-    (ant-log 4 "looking for pheromones around (" x "," y ")")
+  (let ((x (round (x ant))) (y (round (y ant)))
+        (intens-list nil) (intens-list-coord nil))
+    (ant-log 5 "looking for pheromones around (" x "," y ")")
     (dolist (coord (mapcar (lambda (p) (cons (+ x (car p)) (+ y (cdr p))))
                            *around-list*))
       (let* ((phe (get-elt-at universe 'pheromone (car coord) (cdr coord)
                               :future nil))
              (owner (if phe (owner phe) nil)))
-        (when (and phe (or (null owner) (not (eq ant owner))))
-          (when (entity-try-move-at ant universe (car coord) (cdr coord))
+        (when phe
+          (setf intens-list (append intens-list (list (intensity phe))))
+          (setf intens-list-coord (append intens-list-coord (list coord))))))
+    (ant-log 5 "intensity list around ant is " intens-list)
+    (multiple-value-bind (min min-pos max max-pos)
+        (min-max-with-pos intens-list)
+      (when (and intens-list (not (and (equal (length intens-list) 8)
+                                       (equal min max))))
+        (let ((coord (nth max-pos intens-list-coord)))
+          (ant-log 5 "found max pheromone at ("
+                   (car coord) "," (cdr coord))
+          (when (and (not (coords-in-list (car coord) (cdr coord)
+                                          (history ant)))
+                     (entity-try-move-at ant universe (car coord) (cdr coord)))
             (return-from ant-try-follow-phe t))))))
   nil)
 
@@ -472,14 +518,14 @@ reached its maximum age or some other cataclysm has happened."))
 
 
 (defmethod passing-time ((universe universe) (phe pheromone))
-  (ant-log 3 "pheromone " phe " in action")
+  (ant-log 6 "pheromone " phe " in action")
   (if (plusp (intensity phe))
       (progn
         (setf (intensity phe) (funcall (decrease-rate phe) (intensity phe)))
-        (place-elt-at universe phe (x phe) (y phe) :future t)
-        (ant-log 5 "pheromone " phe " after passing time."))
+        (place-elt-at universe phe (x phe) (y phe) :future t :from-past t)
+        (ant-log 6 "pheromone " phe " after passing time."))
       (progn
-        (ant-log 3 "pheromone " phe " has vanished")
+        (ant-log 5 "pheromone " phe " has vanished")
         ;;(delete-elt-at universe 'pheromone (x phe) (y phe) :future nil)
         )))
         
@@ -490,8 +536,6 @@ reached its maximum age or some other cataclysm has happened."))
         (list (if future (dyn-elt-future universe) (dyn-elt-present universe))))
     (ant-log 3 "placing a new element at " x "," y " in "
              (if future "future" "present"))
-    (when (eql (type-of elt) 'ant)
-      (ant-log 3 "direction (of ant): " (radtod (direction elt))))
     (if (null (aref array x y))
         (setf (aref array x y) (list elt))
         (progn
@@ -504,32 +548,44 @@ reached its maximum age or some other cataclysm has happened."))
           (setf (dyn-elt-present universe) (list elt))))))
 
 
+(defmethod place-elt-at ((universe universe) (ant ant) x y &key (future t))
+  (ant-log 3 "placing a new ant")
+  (ant-log 3 "direction of ant: " (radtod (direction ant)))
+  (nconc (history ant) (list (cons x y)))
+  (when (>= (length (history ant)) 10)
+    (pop (history ant)))
+  (ant-log 6 "history of " ant " is now " (history ant))
+  (call-next-method))
+
+  
 (defmethod place-elt-at ((universe universe) (phe pheromone) x y
-                         &key (future t))
+                         &key (future t) from-past)
   (when (or (minusp x) (minusp y) (>= x (size universe)) (>= y (size universe))
             (not (plusp (intensity phe))))
+    (ant-log 7 "pheromone out of bounds: " phe)
     (return-from place-elt-at))
   (let ((array (if future (u-array-future universe) (u-array universe)))
         (list (if future (dyn-elt-future universe) (dyn-elt-present universe)))
         (old-phe (get-elt-at universe 'pheromone x y :future future)))
-    (ant-log 4 "placing a new pheromone at " x "," y " in "
+    (ant-log 6 "placing a new pheromone at " x "," y " in "
              (if future "future" "present"))
     (if old-phe
         (progn
-          (ant-log 4 "a pheromone already exists at the coords.")
+          (ant-log 6 "a pheromone already exists at the coords.")
           ;; :todo: - different types of pheromones
           ;; :todo: - different decrease rates
           (setf (intensity old-phe)
                 (min *pheromone-max-intensity*
                      (+ (intensity old-phe) (intensity phe))))
-          ;; replace owner
-          (setf (owner old-phe) (owner phe)))
+          ;; replace owner (if not coming from past)
+          (when (not from-past)
+            (setf (owner old-phe) (owner phe))))
         (progn
           (if (null (aref array x y))
               (setf (aref array x y) (list phe))
               (progn
                 (nconc (aref array x y) (list phe))
-                (ant-log 4 "concat. with previous elements")))
+                (ant-log 6 "concat. with previous elements")))
           (if list
               (nconc list (list phe))
               (if future
@@ -562,39 +618,30 @@ reached its maximum age or some other cataclysm has happened."))
   "Place pheromones on a square area around x,y with side r"
   ;; :fixme: r > 10 ?
   ;; :fixme: outside universe
-  (place-elt-at universe (make-instance 'pheromone :x x :y y :intensity 10
-                                        :decrease-rate decrease-rate :owner owner)
-                x y :future future )
-  (loop
-     for times from 1 to r do
-       (ant-log 5 "horizontal from " (- x times) " to " (+ x times)
-                " at  y=" (- y times) "&" (+ y times))
-       (loop
-          for p-phe from (- x times) to (+ x times) do
-            (place-elt-at universe
-                          (make-instance 'pheromone :x p-phe :y (- y times)
-                                         :intensity (- 10 times) :owner owner
-                                         :decrease-rate decrease-rate)
-                          p-phe (- y times) :future future)
-            (place-elt-at universe
-                          (make-instance 'pheromone :x p-phe :y (+ y times)
-                                         :intensity (- 10 times) :owner owner
-                                         :decrease-rate decrease-rate)
-                          p-phe (+ y times) :future future))
-       (ant-log 5 "vertical from " (1+ (- y times)) " to " (1- (+ y times))
-                " at  x=" (- x times) "&" (+ x times))
-       (loop
-          for p-phe from (1+ (- y times)) to (1- (+ y times)) do
-            (place-elt-at universe
-                          (make-instance 'pheromone :x (- x times) :y p-phe
-                                         :intensity (- 10 times) :owner owner
-                                         :decrease-rate decrease-rate)
-                          (- x times) p-phe :future future)
-            (place-elt-at universe
-                          (make-instance 'pheromone :x (+ x times) :y p-phe
-                                         :intensity (- 10 times) :owner owner
-                                         :decrease-rate decrease-rate)
-                          (+ x times) p-phe :future future))))
+  (flet ((make-phe (x y i)
+           (make-instance 'pheromone :x x :y y :intensity i :owner owner
+                          :decrease-rate decrease-rate)))
+    (place-elt-at universe (make-phe x y (/ *pheromone-max-intensity* 2))
+                  x y :future future )
+    (let ((maxi (/ *pheromone-max-intensity* 2)))
+      (loop
+         for times from 1 to r do
+           (ant-log 7 "horizontal from " (- x times) " to " (+ x times)
+                    " at  y=" (- y times) "&" (+ y times))
+           (loop
+              for p-phe from (- x times) to (+ x times) do
+                (place-elt-at universe (make-phe p-phe (- y times) (- maxi times))
+                              p-phe (- y times) :future future)
+              (place-elt-at universe (make-phe p-phe (+ y times) (- maxi times))
+                            p-phe (+ y times) :future future))
+         (ant-log 7 "vertical from " (1+ (- y times)) " to " (1- (+ y times))
+                  " at  x=" (- x times) "&" (+ x times))
+         (loop
+            for p-phe from (1+ (- y times)) to (1- (+ y times)) do
+              (place-elt-at universe (make-phe (- x times) p-phe (- maxi times))
+                            (- x times) p-phe :future future)
+              (place-elt-at universe (make-phe (+ x times) p-phe (- maxi times))
+                            (+ x times) p-phe :future future))))))
 
 
 (defun ant-phe-fn-1 (ant universe)

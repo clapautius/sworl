@@ -42,17 +42,14 @@
 (defmethod display-entity ((window u-window) (entity ant) x y)
   ;;(break)
   (let ((preferred-color (color entity)))
-	(cond
-	  ((eql preferred-color 'red)
-	   (gl:color 1 0 0))
-	  ((eql preferred-color 'blue)
-	   (gl:color 0 0 1))
-	  ((eql preferred-color 'green)
-	   (gl:color 0 1 0))
-	  ((eql preferred-color 'yellow)
-	   (gl:color 1 1 0))
-	  (t
-	   (gl:color 1 0 0)))
+	(case preferred-color
+	  (red (gl:color 1 0 0))
+	  (blue (gl:color 0 0 1))
+	  (green (gl:color 0 1 0))
+	  (yellow (gl:color 1 1 0))
+	  (cyan (gl:color 0 1 1))
+	  (magenta (gl:color 1 0 1))
+	  (otherwise (gl:color 1 0.5 0.5)))
 	(gl:with-primitive :polygon
 	  (gl:vertex x y) (gl:vertex (+ x 0.99) y)
 	  (gl:vertex  (+ x 0.99) (+ y 0.99)) (gl:vertex x (+ y 0.99)))))
@@ -96,7 +93,7 @@
     (glut:destroy-current-window)))
 
 (defmethod glut:display-window :before ((w u-window))
-  (gl:clear-color 0 0 0 0)
+  (gl:clear-color 0 0.1 0 0)
   (gl:matrix-mode :projection)
   (gl:load-identity)
   (gl:ortho 0 (glut:width w) 0 (glut:height w) -1 1))
