@@ -12,10 +12,11 @@
 ;;; 6 - objects frequently used
 ;;; 7 - usually temp stuff (probably not used after implementation)
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *ant-log-level* 3))
+  (defparameter *ant-log-level* 4))
 
 (defparameter *pheromone-max-intensity* 10)
 (defparameter *ant-history-len* 31)
+(defparameter *ant-smell-radius* 3)
 
 (defparameter *around-list* (list (cons -1  -1) (cons  0 -1) (cons  1 -1)
                                   (cons -1   0) (cons  1  0) (cons -1  1)
@@ -349,7 +350,7 @@
   ;;(ant-log 6 "step-size for ant is " (step-size ant))
   ;;(ant-log 6 "cos & sin for ant is " (cos (direction ant)) " , "
   ;;         (sin (direction ant)))
-  (ant-log 4 "new direction for ant is " (direction ant))
+  (ant-log 4 "new direction for ant is " (radtod (direction ant)))
   (ant-log 6 "new x-step & y-step for ant is " (slot-value ant 'x-step)
            (slot-value ant 'y-step))
   t)
@@ -392,16 +393,23 @@ reached its maximum age or some other cataclysm has happened."))
 (defmethod entity-try-move-at ((ant ant) (universe universe) x-new y-new)
   (let ((x-new-int (round x-new))
          (y-new-int (round y-new)))
-    (ant-log 4 "candidate positions for ant: " x-new "," y-new)
-    ;; check free space
-    (if (empty-p universe x-new-int y-new-int t)
+    (ant-log 4 "candidate positions for ant: (" x-new "," y-new ")")
+    ;; check free space (in present & future)
+    (if (and (empty-p universe x-new-int y-new-int t) ; free space in the future
+             ;; present - check if position is empty or is the current position
+             ;; of the ant
+             (or (empty-p universe x-new-int y-new-int nil)
+                 (and (eql x-new-int (round (x ant)))
+                      (eql y-new-int (round (y ant))))))
         (progn
           (place-elt-at universe ant x-new-int y-new-int :future t)
           (setf (x ant) x-new)
           (setf (y ant) y-new)
-          (ant-log 4 "new position for ant: " (x ant) "," (y ant))
+          (ant-log 4 "new position for ant: (" (x ant) "," (y ant) ")")
           t)
-        nil)))
+        (progn
+          (ant-log 4 "cannot move to: (" x-new "," y-new ")")
+          nil))))
 
     
 (defmethod entity-try-move ((ant ant) (universe universe) x-step y-step)
@@ -412,32 +420,32 @@ reached its maximum age or some other cataclysm has happened."))
     (entity-try-move-at ant universe x-new y-new)))
 
 
-(defun ant-try-move-forward (ant universe)
-  ;; try to keep the same direction
-  ;; x-new = x + cos(direction)
-  ;; y-new = y + sin(direction)
-  (entity-try-move ant universe (x-step ant) (y-step ant)))
+(defun ant-try-move-direction (ant universe direction)
+  "Try to move forward/backward/left/right"
+  (multiple-value-bind (x-new-step y-new-step angle)
+      (cond
+        ((eql direction 'forward)
+         (values (x-step ant) (y-step ant) 0))
+        ((eql direction 'backward)
+         (values (- (x-step ant)) (- (y-step ant)) 180))
+        ((eql direction 'left)
+         (values (- (y-step ant)) (x-step ant) 90))
+        ((eql direction 'right)
+         (values (y-step ant) (- (x-step ant)) -90)))
+    (if (entity-try-move ant universe x-new-step y-new-step)
+        (entity-change-dir ant (dtorad angle))
+        nil)))
 
-(defun ant-try-move-left (ant universe)
-  (and (entity-try-move ant universe (- (y-step ant)) (x-step ant))
-       (entity-change-dir ant (dtorad 90))))
-
-(defun ant-try-move-right (ant universe)
-  (and (entity-try-move ant universe (y-step ant) (- (x-step ant)))
-       (entity-change-dir ant (dtorad -90))))
-
-(defun ant-try-move-backward (ant universe)
-  (and (entity-try-move ant universe (- (x-step ant)) (- (y-step ant)))
-       (entity-change-dir ant (dtorad 180))))
 
 (defun ant-try-move-angle (ant universe angle &key absolute)
+  (ant-log 2 "  trying to change angle"
+           (if absolute " to " " with ") (radtod angle) " degrees")
   (let ((new-angle (if absolute angle (+ (direction ant) angle))))
-    (ant-log 2 "  trying to change angle"
-             (if absolute " to " " with ") (radtod new-angle) " degrees")
     (let ((x-step (* (step-size ant) (cos new-angle)))
           (y-step (* (step-size ant) (sin new-angle))))
       (and (entity-try-move ant universe x-step y-step)
            (entity-change-dir ant new-angle :absolute t)))))
+
 
 (defun ant-try-move-towards (ant universe x-final y-final)
   "Try to move towards coord. (x-final, y-final)"
@@ -448,13 +456,13 @@ reached its maximum age or some other cataclysm has happened."))
 
 (defun ant-move-deterministic (ant universe)
   (ant-log 3 "ant " ant " in action")
-  (or (ant-try-move-forward ant universe)
+  (or (ant-try-move-direction ant universe 'forward)
       (ant-log 4 "cannot move forward")
-      (ant-try-move-left ant universe)
+      (ant-try-move-direction ant universe 'left)
       (ant-log 4 "cannot move left")
-      (ant-try-move-right ant universe)
+      (ant-try-move-direction ant universe 'right)
       (ant-log 4 "cannot move right")
-      (ant-try-move-backward ant universe) 
+      (ant-try-move-direction ant universe 'backward)
       (ant-log 4 "cannot move backwards")
       (progn
         (ant-log 0 "ant is blocked and confused")
@@ -505,7 +513,7 @@ provided). Return a list of pheromones."
 (defun ant-try-follow-phe (ant universe)
   "Try to follow pheromone trails"
   (let* ((x (round (x ant))) (y (round (y ant)))
-        (phe-list (check-phe-around universe x y 3 (history ant))))
+        (phe-list (check-phe-around universe x y *ant-smell-radius* (history ant))))
     (ant-log 5 "found pheromones around (" x "," y "): " phe-list)
     ;; :todo: - take into account distance
     (sort phe-list (lambda (a b) (> (intensity a) (intensity b))))

@@ -199,7 +199,7 @@
 
 
 (defun ants-run-opengl-many-random (&key (size 500) (ants 20) (duration 1500)
-                                    (function nil))
+                                    function pause)
   "Simulation with many ants with random positions and random directions"
   (let* ((*random-state* (make-random-state t))
          (fn (if function function 'ant-move-follow-phe-random))
@@ -208,8 +208,16 @@
     (ants-pre-run universe ants)
     (generate-ants-random ants universe t)
     (glut:display-window (make-instance 'u-window :width size :height size
-                                        :universe universe :keep-trails nil)))
+                                        :universe universe :keep-trails nil
+                                        :pause pause)))
   (ants-post-run))
+
+
+(defun ants-run-opengl-one-random (&key (size 200) (duration 250)
+                                   function (pause 0.15))
+  "Simulation with one ant with random position & random directions"
+  (ants-run-opengl-many-random :ants 1 :size size :duration duration
+                               :function function :pause pause))
 
 
 (defun ants-run-opengl-face-to-face (&key (duration 150))
