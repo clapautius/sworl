@@ -2,12 +2,6 @@
 
 (declaim (optimize debug))
 
-(defparameter *pheromone-max-intensity* 10)
-
-(defparameter *around-list* (list (cons -1  -1) (cons  0 -1) (cons  1 -1)
-                                  (cons -1   0) (cons  1  0) (cons -1  1)
-                                  (cons  0   1) (cons  1  1)))
-
 ;;; logging
 ;;; 0 - errors (always)
 ;;; 1 - warnings
@@ -18,7 +12,15 @@
 ;;; 6 - objects frequently used
 ;;; 7 - usually temp stuff (probably not used after implementation)
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *ant-log-level* 5))
+  (defparameter *ant-log-level* 3))
+
+(defparameter *pheromone-max-intensity* 10)
+(defparameter *ant-history-len* 31)
+
+(defparameter *around-list* (list (cons -1  -1) (cons  0 -1) (cons  1 -1)
+                                  (cons -1   0) (cons  1  0) (cons -1  1)
+                                  (cons  0   1) (cons  1  1)))
+
 
 (defmacro ant-log (log-level &rest print-list)
   (if (<= log-level *ant-log-level*)
@@ -46,10 +48,14 @@
   `(/ (* ,radians 180) 3.1415926))
 
 
-(deftype static-element () "Static elements in the universe." '(member rock))
+(defun distance-manhattan (x1 y1 x2 y2)
+  "Calculate distance between coordinates (manhattan distance, for speed)"
+  (+ (abs (- x1 x2)) (abs (- y1 y2))))
+
 
 (defun coords-in-list (x y list)
   (some (lambda (p) (equal (cons x y) p)) list))
+
 
 (defun min-max-with-pos (list)
   (let ((min (first list)) (max (first list))
@@ -65,6 +71,9 @@
           (setf max-pos pos)))
       (incf pos))
     (values-list (list min min-pos max max-pos))))
+
+
+(deftype static-element () "Static elements in the universe." '(member rock))
 
 
 (defclass universe ()
@@ -299,8 +308,9 @@
 
 
     
-(defgeneric entity-change-dir (entity degrees)
-  (:documentation "Change the entity direction with 'degrees' degrees"))
+(defgeneric entity-change-dir (entity degrees &key absolute)
+  (:documentation "Change the entity direction with 'degrees' degrees or set the
+  specified direction if 'absolute' is true"))
 
 (defgeneric entity-try-move (ant universe x-step y-step)
   (:documentation "Try to move the specified entity in the universe. Return nil
@@ -330,8 +340,10 @@
   (format stream "PHE[~a,~a,int=~a]" (x phe) (y phe) (intensity phe)))
 
 
-(defmethod entity-change-dir ((ant ant) rad)
-  (setf (direction ant) (+ (direction ant) rad))
+(defmethod entity-change-dir ((ant ant) rad &key absolute)
+  (if absolute
+      (setf (direction ant) rad)
+      (setf (direction ant) (+ (direction ant) rad)))
   (setf (slot-value ant 'x-step) (* (step-size ant) (cos (direction ant))))
   (setf (slot-value ant 'y-step) (* (step-size ant) (sin (direction ant))))
   ;;(ant-log 6 "step-size for ant is " (step-size ant))
@@ -418,12 +430,21 @@ reached its maximum age or some other cataclysm has happened."))
   (and (entity-try-move ant universe (- (x-step ant)) (- (y-step ant)))
        (entity-change-dir ant (dtorad 180))))
 
-(defun ant-try-move-angle (ant universe angle)
-  (ant-log 2 "  trying to change angle with " (radtod angle) " degrees")
-  (let ((x-step (* (step-size ant) (cos (+ (direction ant) angle))))
-        (y-step (* (step-size ant) (sin (+ (direction ant) angle)))))
-    (and (entity-try-move ant universe x-step y-step)
-         (entity-change-dir ant angle))))
+(defun ant-try-move-angle (ant universe angle &key absolute)
+  (let ((new-angle (if absolute angle (+ (direction ant) angle))))
+    (ant-log 2 "  trying to change angle"
+             (if absolute " to " " with ") (radtod new-angle) " degrees")
+    (let ((x-step (* (step-size ant) (cos new-angle)))
+          (y-step (* (step-size ant) (sin new-angle))))
+      (and (entity-try-move ant universe x-step y-step)
+           (entity-change-dir ant new-angle :absolute t)))))
+
+(defun ant-try-move-towards (ant universe x-final y-final)
+  "Try to move towards coord. (x-final, y-final)"
+  (ant-try-move-angle ant universe
+                      (atan (- y-final (y ant)) (- x-final (x ant)))
+                      :absolute t))
+
 
 (defun ant-move-deterministic (ant universe)
   (ant-log 3 "ant " ant " in action")
@@ -461,33 +482,39 @@ reached its maximum age or some other cataclysm has happened."))
       (ant-move-deterministic ant universe)))
 
 
+(defun check-phe-around (universe x y r &optional history)
+  "Find pheromones around (x,y), skipping coordinates from history list (if
+provided). Return a list of pheromones."
+  (let ((ret-list nil))
+    (dolist (elt (dyn-elt-present universe))
+      (when (eql (type-of elt) 'pheromone)
+        (ant-log 7 "checking phe " elt)
+        (let ((dist (distance-manhattan x y (x elt) (y elt)))
+              (cond2 (notany (lambda (p)
+                               (and (<= (abs (- (x elt) (car p))) 1)
+                                    (<= (abs (- (y elt) (cdr p))) 1)))
+                             history)))
+          (ant-log 7 "dist=" dist ", cond2=" cond2)
+          (when (and (<= dist r) cond2)
+            (if ret-list
+                (nconc ret-list (list elt))
+                (setf ret-list (list elt)))))))
+    ret-list))
+
+
 (defun ant-try-follow-phe (ant universe)
   "Try to follow pheromone trails"
-  ;; :todo: check intensity
-  (let ((x (round (x ant))) (y (round (y ant)))
-        (intens-list nil) (intens-list-coord nil))
-    (ant-log 5 "looking for pheromones around (" x "," y ")")
-    (dolist (coord (mapcar (lambda (p) (cons (+ x (car p)) (+ y (cdr p))))
-                           *around-list*))
-      (let* ((phe (get-elt-at universe 'pheromone (car coord) (cdr coord)
-                              :future nil))
-             (owner (if phe (owner phe) nil)))
-        (when phe
-          (setf intens-list (append intens-list (list (intensity phe))))
-          (setf intens-list-coord (append intens-list-coord (list coord))))))
-    (ant-log 5 "intensity list around ant is " intens-list)
-    (multiple-value-bind (min min-pos max max-pos)
-        (min-max-with-pos intens-list)
-      (when (and intens-list (not (and (equal (length intens-list) 8)
-                                       (equal min max))))
-        (let ((coord (nth max-pos intens-list-coord)))
-          (ant-log 5 "found max pheromone at ("
-                   (car coord) "," (cdr coord))
-          (when (and (not (coords-in-list (car coord) (cdr coord)
-                                          (history ant)))
-                     (entity-try-move-at ant universe (car coord) (cdr coord)))
-            (return-from ant-try-follow-phe t))))))
-  nil)
+  (let* ((x (round (x ant))) (y (round (y ant)))
+        (phe-list (check-phe-around universe x y 3 (history ant))))
+    (ant-log 5 "found pheromones around (" x "," y "): " phe-list)
+    ;; :todo: - take into account distance
+    (sort phe-list (lambda (a b) (> (intensity a) (intensity b))))
+    (ant-log 5 "after sorting by intensity: " phe-list)
+    (dolist (phe phe-list)
+      (when (ant-try-move-towards ant universe (x phe) (y phe))
+        (ant-log 5 "moving towards " (x phe) "," (y phe))
+        (return-from ant-try-follow-phe t)))
+    nil))
 
 
 (defun ant-move-follow-phe-random (ant universe)
@@ -552,7 +579,7 @@ reached its maximum age or some other cataclysm has happened."))
   (ant-log 3 "placing a new ant")
   (ant-log 3 "direction of ant: " (radtod (direction ant)))
   (nconc (history ant) (list (cons x y)))
-  (when (>= (length (history ant)) 10)
+  (when (>= (length (history ant)) *ant-history-len*)
     (pop (history ant)))
   (ant-log 6 "history of " ant " is now " (history ant))
   (call-next-method))
@@ -649,8 +676,9 @@ reached its maximum age or some other cataclysm has happened."))
   (let ((x (round (x ant)))
         (y (round (y ant))))
     (place-elt-at universe
-                  (make-instance 'pheromone :x x :y y :intensity 10
-                                 :decrease-rate (lambda (x) (- x 0.5)))
+                  (make-instance 'pheromone :x x :y y
+                                 :intensity *pheromone-max-intensity*
+                                 :decrease-rate (lambda (x) (- x 0.33)))
                   x y :future t)))
 
 (defun ant-phe-fn-2 (ant universe)
