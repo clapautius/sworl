@@ -61,9 +61,11 @@
 	  (cyan (gl:color 0 1 1))
 	  (magenta (gl:color 1 0 1))
 	  (otherwise (gl:color 1 0.5 0.5)))
-	(gl:with-primitive :polygon
-	  (gl:vertex x y) (gl:vertex (+ x 0.99) y)
-	  (gl:vertex  (+ x 0.99) (+ y 0.99)) (gl:vertex x (+ y 0.99)))))
+	(let ((xx1 (- x 0.25)) (xx2 (+ x 1.25))
+		  (yy1 (- y 0.25)) (yy2 (+ y 1.25)))
+	  (gl:with-primitive :polygon
+		(gl:vertex xx1 yy1) (gl:vertex xx2 yy1)
+		(gl:vertex  xx2 yy2) (gl:vertex xx1 yy2)))))
 	;;(gl:with-primitive :lines
 	  ;;(gl:vertex x y)
 	  ;;(gl:vertex (+ x 0.99) (+ y 0.99))
@@ -75,8 +77,8 @@
   ;;(break)
   (cond
 	((eql (ph-type entity) 'generic)
-	 (let ((grey (/ (intensity entity) 10)))
-	   (gl:color grey grey grey)
+	 (let ((grey (/ (intensity entity) *pheromone-max-intensity*)))
+	   (gl:color 1 1 (- 1 grey))
 	   (gl:with-primitive :polygon
 		 (gl:vertex x y) (gl:vertex (+ x 0.99) y)
 		 (gl:vertex  (+ x 0.99) (+ y 0.99)) (gl:vertex x (+ y 0.99)))))))
@@ -112,31 +114,35 @@
 	(setf (opengl-initialized w) t)))
 
 (defmethod glut:display ((w u-window))
-  (when (not (keep-trails w))
-	(gl:clear :color-buffer))
+  (flet ((draw-axis (w)
+		   (let ((u-size (size (universe w))))
+			 ;; axis
+			 (gl:color 1 0 0)
+			 (gl:with-primitive :lines
+			   (gl:vertex 0 0 0) (gl:vertex (+ u-size 10) 0 0)
+			   (gl:vertex 0 0 0) (gl:vertex 0 (+ u-size 10) 0)
+			   (gl:vertex 0 0 0) (gl:vertex 0 0 40))
+			 
+			 ;; earth
+			 (gl:color 0.1 0.8 0.1)
+			 (gl:with-primitive :polygon
+			   (gl:vertex 0 0) (gl:vertex u-size 0)
+			   (gl:vertex  u-size u-size) (gl:vertex 0 u-size)))))
+		   
+	(when (not (keep-trails w))
+	  (gl:clear :color-buffer))
+	
+	(draw-axis w)
+	
+	(dotimes (x (size (universe w)))
+	  (dotimes (y (size (universe w)))
+		(when (aref (u-array (universe w)) x y)
+		  (display-entity-list w (aref (u-array (universe w)) x y) x y))
+		(when (aref (u-array-static (universe w)) x y)
+		  (display-static-element w (aref (u-array-static (universe w)) x y) x y))))
+	(glut:swap-buffers)))
 
-  (let ((u-size (size (universe w))))
-	;; axis
-	(gl:color 1 0 0)
-	(gl:with-primitive :lines
-	  (gl:vertex 0 0 0) (gl:vertex (+ u-size 10) 0 0)
-	  (gl:vertex 0 0 0) (gl:vertex 0 (+ u-size 10) 0)
-	  (gl:vertex 0 0 0) (gl:vertex 0 0 10))
-
-	;; earth
-	(gl:color 0.1 0.8 0.1)
-	(gl:with-primitive :polygon
-	  (gl:vertex 0 0) (gl:vertex u-size 0)
-	  (gl:vertex  u-size u-size) (gl:vertex 0 u-size)))
-
-  (dotimes (x (size (universe w)))
-	(dotimes (y (size (universe w)))
-	  (when (aref (u-array (universe w)) x y)
-		(display-entity-list w (aref (u-array (universe w)) x y) x y))
-	  (when (aref (u-array-static (universe w)) x y)
-		(display-static-element w (aref (u-array-static (universe w)) x y) x y))))
-  (glut:swap-buffers))
-
+  
 (defmethod glut:idle ((w u-window))
   (and (pause w) (sleep (pause w)))
   (if (passing-time-universal (universe w))
@@ -146,15 +152,18 @@
 
 (defmethod glut:display-window :before ((w u-3d-window))
   (unless (opengl-initialized w)
-	(let ((u-size (size (universe w)))
-		  (camera-height 100)
-		  (camera-y-offset 100))
-	  (gl:clear-color 0.4 0.4 0.8 0)
+	(let* ((u-size (size (universe w)))
+		   (camera-height (/ u-size 2))
+		   (camera-x-pos (/ u-size 2))
+		   (camera-y-pos (/ u-size 6))
+		   (look-at-x (/ u-size 2))
+		   (look-at-y (/ u-size 3)))
+	  (gl:clear-color 0.3 0.4 1 0)
 	  (gl:matrix-mode :projection)
 	  (gl:load-identity)
 	  (gl:viewport 0 0 u-size u-size)
-	  (glu:perspective 145 1 0 (/ u-size 2))
-	  (glu:look-at (/ u-size 2) camera-y-offset camera-height ; camera pos
-				   (/ u-size 2) (/ u-size 4) 0  ; look at
+	  (glu:perspective 100 1 0 (* u-size 2))
+	  (glu:look-at camera-x-pos camera-y-pos camera-height ; camera pos
+				   look-at-x look-at-y 0  ; look at
 				   0 0 1) ; up
 	  (setf (opengl-initialized w) t))))

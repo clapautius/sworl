@@ -12,7 +12,7 @@
 ;;; 6 - objects frequently used
 ;;; 7 - usually temp stuff (probably not used after implementation)
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *ant-log-level* 4))
+  (defparameter *ant-log-level* 0))
 
 (defparameter *pheromone-max-intensity* 10)
 (defparameter *ant-history-len* 31)
