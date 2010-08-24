@@ -6,6 +6,7 @@
 (in-package :sworl-system)
 
 (require 'cl-glut)
+(require 'cl-glu)
 (require 'cl-opengl)
 
 (asdf:defsystem :sworl

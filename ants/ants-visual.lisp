@@ -18,11 +18,22 @@
   (keep-trails
    :initarg :keep-trails
    :initform nil
-   :reader keep-trails))
+   :reader keep-trails)
+
+   ;; :todo: - find the right way to do this
+   (opengl-initialized
+	:initform nil
+	:accessor opengl-initialized))
 
   (:default-initargs
    :title "Universe (sworl)"
 	:mode '(:double :rgb)))
+
+
+(defclass u-3d-window (u-window)
+  ()
+  (:documentation "Class for OpenGL window with 3D graphics"))
+
 
 (defgeneric display-entity (window entity x y)
   (:documentation "Display the specified entity in the OpenGL window"))
@@ -93,14 +104,31 @@
     (glut:destroy-current-window)))
 
 (defmethod glut:display-window :before ((w u-window))
-  (gl:clear-color 0 0.1 0 0)
-  (gl:matrix-mode :projection)
-  (gl:load-identity)
-  (gl:ortho 0 (glut:width w) 0 (glut:height w) -1 1))
+  (unless (opengl-initialized w)
+	(gl:clear-color 0 0.1 0 0)
+	(gl:matrix-mode :projection)
+	(gl:load-identity)
+	(gl:ortho 0 (glut:width w) 0 (glut:height w) -1 1)
+	(setf (opengl-initialized w) t)))
 
 (defmethod glut:display ((w u-window))
   (when (not (keep-trails w))
 	(gl:clear :color-buffer))
+
+  (let ((u-size (size (universe w))))
+	;; axis
+	(gl:color 1 0 0)
+	(gl:with-primitive :lines
+	  (gl:vertex 0 0 0) (gl:vertex (+ u-size 10) 0 0)
+	  (gl:vertex 0 0 0) (gl:vertex 0 (+ u-size 10) 0)
+	  (gl:vertex 0 0 0) (gl:vertex 0 0 10))
+
+	;; earth
+	(gl:color 0.1 0.8 0.1)
+	(gl:with-primitive :polygon
+	  (gl:vertex 0 0) (gl:vertex u-size 0)
+	  (gl:vertex  u-size u-size) (gl:vertex 0 u-size)))
+
   (dotimes (x (size (universe w)))
 	(dotimes (y (size (universe w)))
 	  (when (aref (u-array (universe w)) x y)
@@ -114,3 +142,19 @@
   (if (passing-time-universal (universe w))
 	  (glut:post-redisplay)
 	  (glut:destroy-current-window)))
+
+
+(defmethod glut:display-window :before ((w u-3d-window))
+  (unless (opengl-initialized w)
+	(let ((u-size (size (universe w)))
+		  (camera-height 100)
+		  (camera-y-offset 100))
+	  (gl:clear-color 0.4 0.4 0.8 0)
+	  (gl:matrix-mode :projection)
+	  (gl:load-identity)
+	  (gl:viewport 0 0 u-size u-size)
+	  (glu:perspective 145 1 0 (/ u-size 2))
+	  (glu:look-at (/ u-size 2) camera-y-offset camera-height ; camera pos
+				   (/ u-size 2) (/ u-size 4) 0  ; look at
+				   0 0 1) ; up
+	  (setf (opengl-initialized w) t))))

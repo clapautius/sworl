@@ -50,7 +50,7 @@
 	;; advance one sec.
 	(passing-time-universal test-universe)
     ;; check movement
-	(ant-try-move-left ant2 test-universe)
+	(ant-try-move-direction ant2 test-universe 'left)
     (test-case (not (empty-p test-universe 5 5 nil)))
     ;; check ants
 	(test-case (empty-p test-universe 2 2 nil))
@@ -270,6 +270,26 @@
   (ants-post-run))
 
 
+(defun ants-run-opengl-3d-many-random (&key (size 500) (ants 20)
+                                         (duration 1500) function pause)
+  "Simulation with many ants with random positions and random directions"
+  (let* ((*random-state* (make-random-state t))
+         (fn (if function function 'ant-move-follow-phe-random))
+         (universe (make-instance 'universe :size size :max-age duration
+                                  :ant-move-func fn)))
+    (ants-pre-run universe ants)
+    (generate-ants-random ants universe t)
+    (glut:display-window (make-instance 'u-3d-window :width size :height size
+                                        :universe universe :keep-trails nil
+                                        :pause pause)))
+  (ants-post-run))
+
+
+(defun ants-run-opengl-3d-one-random (&key (size 200) (duration 250)
+                                        function (pause 0.15))
+  "Simulation with one ant with random position & random directions"
+  (ants-run-opengl-3d-many-random :ants 1 :size size :duration duration
+                               :function function :pause pause))
 
 ;;; * emacs display settings *
 ;;; Local Variables:
