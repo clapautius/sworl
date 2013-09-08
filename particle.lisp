@@ -1,3 +1,7 @@
+(in-package :sworl)
+
+;; :debug:
+(declaim (optimize debug))
 
 ;;;; A particle = an object that has position, velocity, acceleration and mass.
 (defclass particle ()
@@ -24,7 +28,13 @@
   (:documentation "A particle = an object that has position, velocity, acceleration and
   mass."))
 
-                  
+
+(defmethod print-object ((particle particle) stream)
+  (format stream "particle: mass=~a, location=~a~%  velocity=~a, acceleration=~a~%"
+          (mass particle) (location particle)
+          (velocity particle) (acceleration particle)))
+
+
 (defgeneric update (entity)
   (:documentation "Update parameters for a generic entity."))
 
@@ -32,10 +42,11 @@
 (defmethod update ((particle particle))
   "Update location, velocity and acceleration for a particle."
 
-  ;; update velocity
+  ;; update velocity and reset acceleration
   (dotimes (i (length (velocity particle)))
     (setf (aref (velocity particle) i)
-          (+ (aref (velocity particle) i) (aref (acceleration particle) i))))
+          (+ (aref (velocity particle) i) (aref (acceleration particle) i)))
+    (setf (aref (acceleration particle) i) 0))
   
   ;; update location
   (dotimes (i (length (location particle)))
@@ -57,24 +68,33 @@ the PARTICLE."
     (incf (aref (acceleration particle) i) (/ (aref force i) (mass particle)))))
 
 
-(defmacro particle-vect-x (particle parameter)
-  `(aref (,parameter ,particle) 0))
+;(defmacro particle-vect-x (particle parameter)
+;  `(aref (,parameter ,particle) 0))
+;
+;(defmacro particle-vect-y (particle parameter)
+;  `(aref (,parameter ,particle) 1))
+;
+;(defmacro particle-vect-z (particle parameter)
+;  `(aref (,parameter ,particle) 2))
 
-(defmacro particle-vect-y (particle parameter)
-  `(aref (,parameter ,particle) 1))
 
-(defmacro particle-vect-z (particle parameter)
-  `(aref (,parameter ,particle) 2))
+;(defmacro particle-loc-x (particle)
+;  `(aref (location ,particle) 0))
+;
+;(defmacro particle-loc-y (particle)
+;  `(aref (location ,particle) 1))
+;
+;(defmacro particle-loc-z (particle)
+;  `(aref (location ,particle) 2))
 
+(defun particle-loc-x (particle)
+  (aref (location particle) 0))
 
-(defmacro particle-loc-x (particle)
-  `(aref (location ,particle) 0))
+(defun particle-loc-y (particle)
+  (aref (location particle) 1))
 
-(defmacro particle-loc-y (particle)
-  `(aref (location ,particle) 1))
-
-(defmacro particle-loc-z (particle)
-  `(aref (location ,particle) 2))
+(defun particle-loc-z (particle)
+  (aref (location particle) 2))
 
 
 (defun vector-magnitude (vect)
@@ -106,9 +126,9 @@ Return a vector of the same dimension."
 
 (defmethod distance-3d-fast ((part1 particle) (part2 particle))
   "Compute distance between two particles (without the sq. root)."
-  (let ((x-diff (- (particle-vect-x part1 location) (particle-vect-x part2 location)))
-        (y-diff (- (particle-vect-y part1 location) (particle-vect-y part2 location)))
-        (z-diff (- (particle-vect-z part1 location) (particle-vect-z part2 location))))
+  (let ((x-diff (- (particle-loc-x part1) (particle-loc-x part2)))
+        (y-diff (- (particle-loc-y part1) (particle-loc-y part2)))
+        (z-diff (- (particle-loc-z part1) (particle-loc-z part2))))
     (+ (* x-diff x-diff) (* y-diff y-diff) (* z-diff z-diff))))
 
 

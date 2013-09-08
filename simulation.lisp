@@ -1,3 +1,8 @@
+(in-package :sworl)
+
+;; :debug:
+(declaim (optimize debug))
+
 ;;;; A universe = collection of objects and rules.
 (defclass universe ()
   (
@@ -29,22 +34,28 @@
     (when rules
       (dolist (obj (objects universe))
         (dolist (rule rules)
-          (apply rule obj)))))
+          (funcall rule obj)))))
 
   ;; apply rules for pairs of objects
   (let ((rules (rules-pair universe)))
     (when rules
-      (dolist (obj1 (objects universe))
-        (dolist (obj2 (objects universe))
+      (do ((pos1 (objects universe) (cdr pos1)))
+          ((null pos1))
+        (dolist (obj2 (cdr pos1))
           (dolist (rule rules)
-            (apply rule obj1 obj2))))))
+            (funcall rule (car pos1) obj2))))))
 
   ;; update objects
   (dolist (obj (objects universe))
     (update obj))
 
-  (incf (u-time universe)))
+  (incf (u-time universe))
 
+  (format t "Universe at time ~a~%" (u-time universe))
+  (dolist (obj (objects universe))
+    (format t "- ~a~%" obj))
+  
+  t)
 
 
 (defun newton-law-gravity-3d (obj1 obj2)
@@ -70,8 +81,8 @@ OBJ1 and OBJ2 must be PARTICLE instances."
     (vector-normalize force2)
     (vector-multiply force1 force-magnitude)
     (vector-multiply force2 force-magnitude)
-    (apply-force obj1 force1)
-    (apply-force obj2 force2)))
+    (apply-force force1 obj1)
+    (apply-force force2 obj2)))
 
 
 (defmethod make-newton-universe ()

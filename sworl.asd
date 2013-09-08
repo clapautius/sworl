@@ -13,6 +13,12 @@
     :components ((:file "package")
                  (:file "particle"
                         :depends-on ("package"))
+                 (:file "simulation"
+                        :depends-on ("package"))
+                 (:file "simulation-visual"
+                        :depends-on ("package"))
+                 (:file "simulation-test"
+                        :depends-on ("package"))
                  (:file "ants/ants"
                         :depends-on ("package"))
 				 (:file "ants/ants-visual"
