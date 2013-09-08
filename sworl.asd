@@ -11,6 +11,8 @@
 
 (asdf:defsystem :sworl
     :components ((:file "package")
+                 (:file "particle"
+                        :depends-on ("package"))
                  (:file "ants/ants"
                         :depends-on ("package"))
 				 (:file "ants/ants-visual"

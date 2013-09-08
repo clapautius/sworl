@@ -1,0 +1,16 @@
+*** Compile project on Debian/ubuntu using quicklisp.
+
+* one time only
+
+(load #p"/usr/share/cl-quicklisp/quicklisp.lisp")
+(quicklisp-quickstart:install)
+
+* every time
+
+(load "/home/me/quicklisp/setup.lisp")
+(ql:quickload "cl-opengl")
+(require :sworl)
+
+*** TODO
+
+* make separate package / system for opengl stuff
