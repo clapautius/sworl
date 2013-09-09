@@ -24,6 +24,15 @@
     :initarg :preferred-size
     :initform 100
     :accessor preferred-size)
+
+   (trails
+    :initarg :trails
+    :initform nil
+    :accessor trails)
+
+   (axis-drawn
+    :initform nil
+    :accessor axis-drawn)
    
    ;; :todo: - find the right way to do this
    (opengl-initialized
@@ -48,19 +57,19 @@
 
 (defmethod glut:display-window :before ((w u-window))
   (unless (opengl-initialized w)
-	(gl:clear-color 0 0.1 0 0)
-	(gl:matrix-mode :projection)
-	(gl:load-identity)
-	(gl:ortho 0 (glut:width w) 0 (glut:height w) -1 1)
-	(setf (opengl-initialized w) t)))
+    (gl:clear-color 0 0.1 0 0)
+    (gl:matrix-mode :projection)
+    (gl:load-identity)
+    (gl:ortho 0 (glut:width w) 0 (glut:height w) -1 1)
+    (setf (opengl-initialized w) t)))
 
 
 (defmethod glut:display-window :before ((w u-3d-window))
   (unless (opengl-initialized w)
     (let* ((u-size (preferred-size w))
-           (camera-height (/ u-size 2))
-           (camera-x-pos (/ u-size 6))
-           (camera-y-pos (- (/ u-size 2)))
+           (camera-height (/ u-size 4))
+           (camera-x-pos (/ u-size 2))
+           (camera-y-pos (+ u-size (/ u-size 9)))
            (look-at-x 0)
            (look-at-y 0)
            (look-at-z 0))
@@ -75,24 +84,34 @@
       (setf (opengl-initialized w) t))))
 
 
-(defmethod glut:display ((w u-window))
-  (flet ((draw-axis (w)
-           (let ((u-size (preferred-size w)))
-             ;; axis
-             (gl:color 1 0 0)
-             (gl:with-primitive :lines
-               (gl:vertex 0 0 0) (gl:vertex u-size 0 0)
-               (gl:vertex 0 0 0) (gl:vertex 0 u-size 0)
-               (gl:vertex 0 0 0) (gl:vertex 0 0 u-size)))))
-    
-    (gl:clear :color-buffer)
-    
-    (draw-axis w)
+(defun draw-axis (w)
+  (let ((u-size (preferred-size w)))
+    ;; axis
+    (gl:color 0.2 0.2 0.2)
+    (gl:with-primitive :lines
+      (gl:vertex 0 0 0) (gl:vertex u-size 0 0)
+      (gl:vertex 0 0 0) (gl:vertex 0 u-size 0)
+      (gl:vertex 0 0 0) (gl:vertex 0 0 u-size))))
 
+
+(defmethod glut:display ((w u-window))
+  (when (not (trails w))
+    (gl:clear :color-buffer))
+
+  (if (trails w)
+    (when (not (axis-drawn w))
+      (draw-axis w)
+      (setf (axis-drawn w) t))
+    (draw-axis w))
+  
+  (dolist (obj (objects (universe w)))
+    (funcall (draw-object w) obj))
+  
+  (glut:swap-buffers)
+  
+  (when (trails w)
     (dolist (obj (objects (universe w)))
-      (funcall (draw-object w) obj))
-    
-    (glut:swap-buffers)))
+      (funcall (draw-object w) obj t))))
 
   
 (defmethod glut:idle ((w u-window))

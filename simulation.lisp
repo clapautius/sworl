@@ -51,9 +51,9 @@
 
   (incf (u-time universe))
 
-  (format t "Universe at time ~a~%" (u-time universe))
-  (dolist (obj (objects universe))
-    (format t "- ~a~%" obj))
+  ;(format t "Universe at time ~a~%" (u-time universe))
+  ;(dolist (obj (objects universe))
+  ;  (format t "- ~a~%" obj))
   
   t)
 
