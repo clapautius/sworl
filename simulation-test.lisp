@@ -142,7 +142,7 @@
 
 
 (defun sim-visual-1 ()
-  "Simple simulation with particles (newtonian universe)."
+  "Simulation 1 with particles (newtonian universe)."
   (let* ((universe (make-newton-universe)))
     (let ((obj (make-instance 'particle :mass 2e16
                               :location (make-array 3 :initial-contents '(0 0 4000))
@@ -163,8 +163,53 @@
       (setf (objects universe) (append (objects universe) (list obj))))
   
     (glut:display-window (make-instance 'u-3d-window :width 1200 :height 750
+                                       :preferred-size 20000
+                                       ;:camera-x-pos (/ 20000 2)
+                                       :camera-x-pos 20000
+                                       :camera-y-pos (- 20000 (/ 20000 5))
+                                       :camera-z-pos (/ 20000 4)
+                                       :look-at (list (/ 20000 2) 0 (/ 20000 4))
+                                       :light (list -10000 -10000 20000 1)
+                                       :theme :dark-with-floor
+                                       :trails nil
+                                       :universe universe :pause 0.004))
+
+    ;; (glut:display-window (make-instance 'u-3d-window :width 1200 :height 750
+    ;;                                     :preferred-size 20000
+    ;;                                     :camera-x-pos (- 3000)
+    ;;                                     :camera-y-pos (/ 20000 8)
+    ;;                                     :camera-z-pos (/ 20000 6)
+    ;;                                     :look-at (list 20000 0 0)
+    ;;                                     :light (list -10000 -10000 20000 1)
+    ;;                                     :theme :dark-with-floor
+    ;;                                     :trails nil
+    ;;                                     :universe universe :pause 0.004))
+    ))
+
+
+(defun sim-visual-2 ()
+  "Simulation 2 with particles (newtonian universe)."
+  (let* ((universe (make-newton-universe)))
+    (let ((obj (make-instance 'particle :mass 1e16
+                              :location (make-array 3 :initial-contents '(3000 0 0))
+                              :velocity (make-array 3 :initial-contents '(0 0 0)))))
+      (setf (getf (appearance obj) :size)  300)
+      (setf (objects universe) (append (objects universe) (list obj))))
+    (let ((obj (make-instance 'particle :mass 1e14
+                              :location (make-array 3 :initial-contents '(0 0 1000))
+                              :velocity (make-array 3 :initial-contents '(14 0 0)))))
+      (setf (getf (appearance obj) :size)  200)
+      (setf (getf (appearance obj) :color) '(1 0.5 0.5))
+      (setf (objects universe) (append (objects universe) (list obj))))
+    (let ((obj (make-instance 'particle :mass 1e14
+                              :location (make-array 3 :initial-contents '(8000 0 0))
+                              :velocity (make-array 3 :initial-contents '(0 -3 -5)))))
+      (setf (getf (appearance obj) :size)  200)
+      (setf (getf (appearance obj) :color) '(0.5 0 0))
+      (setf (objects universe) (append (objects universe) (list obj))))
+  
+    (glut:display-window (make-instance 'u-3d-window :width 1200 :height 750
                                         :preferred-size 20000
-                                        ;:camera-x-pos (/ 20000 2)
                                         :camera-x-pos 20000
                                         :camera-y-pos (- 20000 (/ 20000 5))
                                         :camera-z-pos (/ 20000 4)

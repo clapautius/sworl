@@ -33,6 +33,21 @@
    (axis-drawn
     :initform nil
     :accessor axis-drawn)
+
+   (color
+    :initarg :color
+    :initform '(0.695 0.901 1)
+    :accessor color)
+
+   (light
+    :initarg :light
+    :initform nil
+    :accessor light)
+
+   (theme
+    :initarg :theme
+    :initform nil
+    :accessor theme)
    
    ;; :todo: - find the right way to do this
    (opengl-initialized
@@ -67,11 +82,33 @@
     (glut:destroy-current-window)))
 
 
+(defun glut-prepare-display-common (w)
+  "Common operation to prepare the OpenGL window"
+  (cond
+    ((eql (theme w) :dark-with-floor)
+     ;(setf (color w) (list 0.098 0.243 0.458))
+     (setf (color w) (list 0.058 0.203 0.418))
+     ))
+  (gl:clear-color (first (color w)) (second (color w)) (third (color w)) 0)
+  (gl:matrix-mode :projection)
+  (gl:load-identity)
+
+  ;; setup lighting
+  (when (light w)
+    (gl:enable :lighting)
+    (gl:enable :light0)
+    (gl:enable :color-material)
+    (gl:light :light0 :position (light w))
+    (gl:light :light0 :constant-attenuation 0)
+    ;;(gl:light :light0 :linear-attenuation 0.0003)
+    (gl:light :light0 :linear-attenuation 0)
+    (gl:light :light0 :quadratic-attenuation 0.0000000008)
+    ))
+
+
 (defmethod glut:display-window :before ((w u-window))
   (unless (opengl-initialized w)
-    (gl:clear-color 0 0.1 0 0)
-    (gl:matrix-mode :projection)
-    (gl:load-identity)
+    (glut-prepare-display-common w)
     (gl:ortho 0 (glut:width w) 0 (glut:height w) -1 1)
     (setf (opengl-initialized w) t)))
 
@@ -85,9 +122,7 @@
            (look-at-x (first (look-at w)))
            (look-at-y (second (look-at w)))
            (look-at-z (third (look-at w))))
-      (gl:clear-color 0 0 0.2 0)
-      (gl:matrix-mode :projection)
-      (gl:load-identity)
+      (glut-prepare-display-common w)
       (gl:viewport 0 0 u-size u-size)
       (glu:perspective 100 1 0 (* u-size 2))
       (glu:look-at camera-x-pos camera-y-pos camera-height ; camera pos
@@ -97,13 +132,27 @@
 
 
 (defun sim-draw-axis (w)
-  (let ((u-size (preferred-size w)))
-    ;; axis
-    (gl:color 0.2 0.2 0.2)
-    (gl:with-primitive :lines
-      (gl:vertex 0 0 0) (gl:vertex u-size 0 0)
-      (gl:vertex 0 0 0) (gl:vertex 0 u-size 0)
-      (gl:vertex 0 0 0) (gl:vertex 0 0 u-size))))
+  (let* ((u-size (preferred-size w))
+         (u-size-half (/ u-size 2))
+         (height (- (/ u-size 6))))
+    (cond
+      ((eql (theme w) :dark-with-floor)
+       (gl:color 0.1 0.2 0.5)
+       (gl:with-primitive :polygon
+         (gl:normal 0 0 1)
+         (gl:vertex (- u-size-half) (- u-size-half) height)
+         (gl:normal 0 0 1)
+         (gl:vertex u-size-half (- u-size-half) height)
+         (gl:normal 0 0 1)
+         (gl:vertex u-size-half u-size-half height)
+         (gl:normal 0 0 1)
+         (gl:vertex (- u-size-half) u-size-half height)))
+      (t
+       (gl:color 0.2 0.2 0.2)
+       (gl:with-primitive :lines
+         (gl:vertex 0 0 0) (gl:vertex u-size 0 0)
+         (gl:vertex 0 0 0) (gl:vertex 0 u-size 0)
+         (gl:vertex 0 0 0) (gl:vertex 0 0 u-size))))))
 
 
 (defun sim-draw-object (obj &optional trail)
