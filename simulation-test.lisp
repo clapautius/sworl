@@ -143,23 +143,31 @@
 
 (defun sim-visual-1 ()
   "Simple simulation with particles (newtonian universe)."
-  (let* ((universe (make-newton-universe))
-         (p1 (make-instance 'particle :mass 2e16
-                            :location (make-array 3 :initial-contents '(0 0 4000))
-                            :velocity (make-array 3 :initial-contents '(3 3 0))))
-         (p2 (make-instance 'particle :mass 2e16
-                            :location (make-array 3 :initial-contents '(0 0 -4000))
-                            :velocity (make-array 3 :initial-contents '(3 -3 0))))
-         (p3 (make-instance 'particle :mass 2.5e16
-                            :location (make-array 3 :initial-contents '(-3000 0 0))
-                            :velocity (make-array 3 :initial-contents '(0 0 0))))
-         )
-
-    (setf (objects universe) (list p1))
-    (setf (objects universe) (append (objects universe) (list p2)))
-    (setf (objects universe) (append (objects universe) (list p3)))
+  (let* ((universe (make-newton-universe)))
+    (let ((obj (make-instance 'particle :mass 2e16
+                              :location (make-array 3 :initial-contents '(0 0 4000))
+                              :velocity (make-array 3 :initial-contents '(3 3 0)))))
+      (setf (getf (appearance obj) :size)  200)
+      (setf (objects universe) (append (objects universe) (list obj))))
+    (let ((obj (make-instance 'particle :mass 2e16
+                              :location (make-array 3 :initial-contents '(0 0 -4000))
+                              :velocity (make-array 3 :initial-contents '(3 -3 0)))))
+      (setf (getf (appearance obj) :size)  200)
+      (setf (getf (appearance obj) :color) '(1 0.5 0.5))
+      (setf (objects universe) (append (objects universe) (list obj))))
+    (let ((obj (make-instance 'particle :mass 2.5e16
+                              :location (make-array 3 :initial-contents '(-3000 0 0))
+                              :velocity (make-array 3 :initial-contents '(0 0 0)))))
+      (setf (getf (appearance obj) :size)  200)
+      (setf (getf (appearance obj) :color) '(0.5 0 0))
+      (setf (objects universe) (append (objects universe) (list obj))))
+  
     (glut:display-window (make-instance 'u-3d-window :width 1200 :height 750
                                         :preferred-size 20000
-                                        :trails t
-                                        :universe universe :pause 0.01
-                                        :draw-object 'display-object-as-sphere))))
+                                        ;:camera-x-pos (/ 20000 2)
+                                        :camera-x-pos 20000
+                                        :camera-y-pos (- 20000 (/ 20000 5))
+                                        :camera-z-pos (/ 20000 4)
+                                        :look-at (list (/ 20000 2) 0 (/ 20000 4))
+                                        :trails nil
+                                        :universe universe :pause 0.004))))

@@ -11,7 +11,7 @@
 
    (draw-object
     :initarg :draw-object
-    :initform (error "Provide a function to display objects")
+    :initform nil
     :accessor draw-object)
    
    ;; pause for every simulation step (in seconds)
@@ -45,7 +45,19 @@
 
 
 (defclass u-3d-window (u-window)
-  ()
+  ((camera-x-pos
+    :initarg :camera-x-pos
+    :accessor camera-x-pos)
+   (camera-y-pos
+    :initarg :camera-y-pos
+    :accessor camera-y-pos)
+   (camera-z-pos
+    :initarg :camera-z-pos
+    :accessor camera-z-pos)
+   (look-at
+    :initarg :look-at
+    :initform '(0 0 0)
+    :accessor look-at))
   (:documentation "Class for OpenGL window with 3D graphics"))
 
 
@@ -67,12 +79,12 @@
 (defmethod glut:display-window :before ((w u-3d-window))
   (unless (opengl-initialized w)
     (let* ((u-size (preferred-size w))
-           (camera-height (/ u-size 4))
-           (camera-x-pos (/ u-size 2))
-           (camera-y-pos (+ u-size (/ u-size 9)))
-           (look-at-x 0)
-           (look-at-y 0)
-           (look-at-z 0))
+           (camera-height (or (camera-z-pos w) (/ u-size 4)))
+           (camera-x-pos (or (camera-x-pos w) (/ u-size 2)))
+           (camera-y-pos (or (camera-y-pos w) (+ u-size (/ u-size 9))))
+           (look-at-x (first (look-at w)))
+           (look-at-y (second (look-at w)))
+           (look-at-z (third (look-at w))))
       (gl:clear-color 0 0 0.2 0)
       (gl:matrix-mode :projection)
       (gl:load-identity)
@@ -84,7 +96,7 @@
       (setf (opengl-initialized w) t))))
 
 
-(defun draw-axis (w)
+(defun sim-draw-axis (w)
   (let ((u-size (preferred-size w)))
     ;; axis
     (gl:color 0.2 0.2 0.2)
@@ -94,24 +106,51 @@
       (gl:vertex 0 0 0) (gl:vertex 0 0 u-size))))
 
 
+(defun sim-draw-object (obj &optional trail)
+  (let* ((x (particle-loc-x obj))
+         (y (particle-loc-y obj))
+         (z (particle-loc-z obj))
+         (shape (getf (appearance obj) :shape :sphere))
+         (size (getf (appearance obj) :size 10))
+         (color (getf (appearance obj) :color '(1 0 0)))
+         (trail-color (getf (appearance obj) :trail-color '(0.1 0.1 0.1))))
+    (cond
+      ((eq shape :sphere)
+       (if trail
+           (gl:color (first trail-color) (second trail-color) (third trail-color))
+           (gl:color (first color) (second color) (third color)))
+       (gl:push-matrix)
+       (gl:translate x y z)
+       (glu:sphere (glu:new-quadric) size 10 10)
+       (gl:pop-matrix))
+      (t
+       (error "Not implemented yet")))))
+
+
 (defmethod glut:display ((w u-window))
   (when (not (trails w))
     (gl:clear :color-buffer))
 
   (if (trails w)
     (when (not (axis-drawn w))
-      (draw-axis w)
+      (sim-draw-axis w)
       (setf (axis-drawn w) t))
-    (draw-axis w))
+    (sim-draw-axis w))
   
   (dolist (obj (objects (universe w)))
-    (funcall (draw-object w) obj))
+    (let ((draw-func (draw-object w)))
+      (if draw-func
+          (funcall draw-func obj)
+          (sim-draw-object obj))))
   
   (glut:swap-buffers)
   
   (when (trails w)
     (dolist (obj (objects (universe w)))
-      (funcall (draw-object w) obj t))))
+      (let ((draw-func (draw-object w)))
+        (if draw-func
+            (funcall (draw-object w) obj t)
+            (sim-draw-object obj t))))))
 
   
 (defmethod glut:idle ((w u-window))

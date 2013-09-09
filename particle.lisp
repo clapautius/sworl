@@ -23,7 +23,15 @@
    (mass
     :initarg :mass
     :initform 0
-    :accessor mass))
+    :accessor mass)
+
+   ;; plist containing visual characteristics
+   ;; :shape (= :cube | :sphere), :size (= number),
+   ;; :color (= list of 3 numbers), :trail-color (= list of 3 numbers)
+   (appearance
+    :initarg :appearance
+    :initform ()
+    :accessor appearance))
 
   (:documentation "A particle = an object that has position, velocity, acceleration and
   mass."))
