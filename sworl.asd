@@ -8,6 +8,7 @@
 (require 'cl-glut)
 (require 'cl-glu)
 (require 'cl-opengl)
+(require 'zpng)
 
 (asdf:defsystem :sworl
     :components ((:file "package")

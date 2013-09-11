@@ -76,14 +76,14 @@ the PARTICLE."
     (incf (aref (acceleration particle) i) (/ (aref force i) (mass particle)))))
 
 
-;(defmacro particle-vect-x (particle parameter)
-;  `(aref (,parameter ,particle) 0))
-;
-;(defmacro particle-vect-y (particle parameter)
-;  `(aref (,parameter ,particle) 1))
-;
-;(defmacro particle-vect-z (particle parameter)
-;  `(aref (,parameter ,particle) 2))
+(defmacro particle-vect-x (particle parameter)
+ `(aref (,parameter ,particle) 0))
+
+(defmacro particle-vect-y (particle parameter)
+ `(aref (,parameter ,particle) 1))
+
+(defmacro particle-vect-z (particle parameter)
+ `(aref (,parameter ,particle) 2))
 
 
 ;(defmacro particle-loc-x (particle)
@@ -139,6 +139,9 @@ Return a vector of the same dimension."
         (z-diff (- (particle-loc-z part1) (particle-loc-z part2))))
     (+ (* x-diff x-diff) (* y-diff y-diff) (* z-diff z-diff))))
 
+
+(defun orbital-speed (mass-big mass-small distance)
+  (sqrt (/ (* mass-big mass-big 6.67384e-11) (* (+ mass-big mass-small) distance))))
 
 ;;; * emacs display settings *
 ;;; Local Variables:

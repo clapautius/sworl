@@ -20,6 +20,11 @@
     :initform nil ; sec.
     :accessor pause)
 
+   (png-file-name
+    :initarg :png-file-name
+    :initform nil
+    :accessor png-file-name)
+   
    (preferred-size
     :initarg :preferred-size
     :initform 100
@@ -43,6 +48,12 @@
     :initarg :light
     :initform nil
     :accessor light)
+
+   ;; quadratic attenuation for light
+   (light-att-q
+    :initarg :light-att-q
+    :initform nil
+    :accessor light-att-q)
 
    (theme
     :initarg :theme
@@ -102,7 +113,7 @@
     (gl:light :light0 :constant-attenuation 0)
     ;;(gl:light :light0 :linear-attenuation 0.0003)
     (gl:light :light0 :linear-attenuation 0)
-    (gl:light :light0 :quadratic-attenuation 0.0000000008)
+    (gl:light :light0 :quadratic-attenuation (or (light-att-q w) 0.0000000008))
     ))
 
 
@@ -170,10 +181,65 @@
            (gl:color (first color) (second color) (third color)))
        (gl:push-matrix)
        (gl:translate x y z)
-       (glu:sphere (glu:new-quadric) size 10 10)
+       ;(glu:sphere (glu:new-quadric) size 10 10)
+       (glu:sphere (glu:new-quadric) size 22 22)
        (gl:pop-matrix))
       (t
        (error "Not implemented yet")))))
+
+
+(defun sim-write-to-png (open-gl-data width height png-file-name)
+  (let* ((png (make-instance 'zpng:png :color-type :truecolor
+                             :width width :height height))
+         (png-array (zpng:data-array png)))
+    (loop for x from 0 to (1- width) do
+       ;;(format t "x=~a~%" x)
+         (loop for y from 0 to (1- height) do
+              (let ((png-h  (- height y 1))
+                    (open-gl-pos (+ (* y width 3) (* x 3))))
+                (setf (aref png-array png-h x 0)
+                      (aref open-gl-data open-gl-pos))
+                (setf (aref png-array png-h x 1)
+                      (aref open-gl-data (+ open-gl-pos 1)))
+                (setf (aref png-array png-h x 2)
+                      (aref open-gl-data (+ open-gl-pos 2))))))
+    (format t "writing png ~a~%" png-file-name)
+    (zpng:write-png png png-file-name)))
+
+
+(defun sim-export-to-png (window png-file-name)
+  "Export image from opengl WINDOW to PNG-FILE-NAME."
+  (declare (ignore window))
+
+  ;; Using gl:read-pixels takes a veeery long time (12 sec / image).
+  ;; (let* ((width (glut:width window))
+  ;;        (height (glut:height window))
+  ;;        open-gl-data)
+  ;;   (time (setf open-gl-data (gl:read-pixels 0 0 width height :rgb :unsigned-byte)))
+  ;;   (time (sim-write-to-png open-gl-data width height png-file-name)))
+
+  ;; :kluge: - use xwd and convert
+  (let ((proc-ret (sb-ext:run-program "xwd" (list
+                                             "-out"
+                                             (concatenate 'string png-file-name ".xwd")
+                                             "-nobdrs"
+                                             "-name"
+                                             "Universe (sworl)"
+                                             "-silent")
+                                      :search t)))
+    (when (= (sb-ext:process-exit-code proc-ret) 0)
+      (let ((proc2-ret (sb-ext:run-program "convert"
+                                           (list
+                                            (concatenate 'string png-file-name ".xwd")
+                                            png-file-name)
+                                           :search t)))
+        ;; ignore exit code for rm
+        (sb-ext:run-program "rm"
+                            (list (concatenate 'string png-file-name ".xwd"))
+                            :search t)
+        (when (= (sb-ext:process-exit-code proc2-ret) 0)
+          (return-from sim-export-to-png t)))))
+  nil)
 
 
 (defmethod glut:display ((w u-window))
@@ -193,6 +259,12 @@
           (sim-draw-object obj))))
   
   (glut:swap-buffers)
+
+  (when (png-file-name w)
+    (let ((png-file-name-num ; png filename with number
+           (format nil "~a~5,'0d.png" (png-file-name w) (u-time (universe w)))))
+      (when (not (sim-export-to-png w png-file-name-num))
+        (format t "Error: error exporting to png file ~a~%" png-file-name-num))))
   
   (when (trails w)
     (dolist (obj (objects (universe w)))
