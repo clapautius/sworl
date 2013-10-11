@@ -12,7 +12,11 @@
 
 (asdf:defsystem :sworl
     :components ((:file "package")
+                 (:file "vector"
+                        :depends-on ("package"))
                  (:file "particle"
+                        :depends-on ("package"))
+                 (:file "newton"
                         :depends-on ("package"))
                  (:file "simulation"
                         :depends-on ("package"))

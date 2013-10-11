@@ -105,33 +105,6 @@ the PARTICLE."
   (aref (location particle) 2))
 
 
-(defun vector-magnitude (vect)
-  "Compute a vector's magnitude."
-  (let ((mag 0))
-    (dotimes (i (length vect))
-      (incf mag (* (aref vect i) (aref vect i))))
-    (sqrt mag)))
-
-
-(defun vector-multiply (vect scalar)
-  "Multiply a vector with a scalar value.
-Return a vector of the same dimension."
-  (dotimes (i (length vect))
-    (setf (aref vect i) (* (aref vect i) scalar))))
-
-
-(defun vector-divide (vect scalar)
-  "Divide a vector by a scalar value.
-Return a vector of the same dimension."
-  (dotimes (i (length vect))
-    (setf (aref vect i) (/ (aref vect i) scalar))))
-
-
-(defun vector-normalize (vect)
-  "Normalize a vector."
-  (vector-divide vect (vector-magnitude vect)))
-
-
 (defmethod distance-3d-fast ((part1 particle) (part2 particle))
   "Compute distance between two particles (without the sq. root)."
   (let ((x-diff (- (particle-loc-x part1) (particle-loc-x part2)))
@@ -139,9 +112,6 @@ Return a vector of the same dimension."
         (z-diff (- (particle-loc-z part1) (particle-loc-z part2))))
     (+ (* x-diff x-diff) (* y-diff y-diff) (* z-diff z-diff))))
 
-
-(defun orbital-speed (mass-big mass-small distance)
-  (sqrt (/ (* mass-big mass-big 6.67384e-11) (* (+ mass-big mass-small) distance))))
 
 ;;; * emacs display settings *
 ;;; Local Variables:
