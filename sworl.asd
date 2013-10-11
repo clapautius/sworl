@@ -24,6 +24,8 @@
                         :depends-on ("package"))
                  (:file "simulation-test"
                         :depends-on ("package"))
+                 (:file "starling-sim"
+                        :depends-on ("package"))
                  (:file "ants/ants"
                         :depends-on ("package"))
 				 (:file "ants/ants-visual"

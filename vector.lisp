@@ -1,5 +1,7 @@
 ;;;; vector operations
 
+(in-package :sworl)
+
 (defun vector-magnitude (vect)
   "Compute a vector's magnitude."
   (let ((mag 0))
@@ -20,6 +22,14 @@ Return a vector of the same dimension."
 Return a vector of the same dimension."
   (dotimes (i (length vect))
     (setf (aref vect i) (/ (aref vect i) scalar))))
+
+
+(defun vector-substract (vect1 vect2)
+  "Substract vect2 from vect1. Return a new vector."
+  (let ((vect (make-array (length vect1))))
+    (dotimes (i (length vect))
+      (setf (aref vect i) (- (aref vect1 i) (aref vect2 i))))
+    vect))
 
 
 (defun vector-normalize (vect)

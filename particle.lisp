@@ -22,7 +22,7 @@
 
    (mass
     :initarg :mass
-    :initform 0
+    :initform 1
     :accessor mass)
 
    ;; plist containing visual characteristics
