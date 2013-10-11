@@ -1,0 +1,16 @@
+*** Useful data for newtonian simulations:
+
+Earth:
+- mass: 5.972E24 kg
+- radius: 6371 km
+- escape velocity: 11.2 km/s
+- orbital speed: 8 km/s
+
+Orbital speed:
+- v = sqrt( ( M^2 . G ) / ( (m + M) x r ) )
+  - M = mass of object being orbited
+  - m = body under consideration
+  - G = gravitational constant = 6.67384 x 10^-11
+  - r = distance
+
+

@@ -1,42 +1,4 @@
-*** Compile project on Debian/ubuntu using quicklisp.
+Common Lisp framework for simulation of entities in a 3D space.
 
-* one time only
-
-(load #p"/usr/share/cl-quicklisp/quicklisp.lisp")
-(quicklisp-quickstart:install)
-
-* every time
-
-(load "/home/me/quicklisp/setup.lisp")
-(ql:quickload "cl-opengl")
-(require :sworl)
-
-*** TODO
-
-* make separate package / system for opengl stuff
-
-
-*** Useful data for newtonian simulations:
-
-Earth:
-- mass: 5.972E24 kg
-- radius: 6371 km
-- escape velocity: 11.2 km/s
-- orbital speed: 8 km/s
-
-Orbital speed:
-- v = sqrt( ( M^2 . G ) / ( (m + M) x r ) )
-  - M = mass of object being orbited
-  - m = body under consideration
-  - G = gravitational constant = 6.67384 x 10^-11
-  - r = distance
-
-
-*** Useful commands
-
-- detect (and fill) gaps in simulation images:
-prefix="sim-4-"; for i in $(seq 1 8900); do ii=$(printf "%05d" $i); if [ ! -e "${prefix}${ii}.png" ]; then ii1=$(printf "%05d" $((i-1))); echo "${prefix}${ii}.png missing"; echo "${prefix}${ii1}.png" "${prefix}${ii}.png" ;fi ; done
-
-- png images to video
-ffmpeg -r 300 -i sim-4-%05d.png -b 4500k -vcodec mpeg4 sim-4.mkv
-
+Example of simulation - objects moving according to Newton's law of gravity:
+http://www.youtube.com/watch?v=61zzOM91KiU

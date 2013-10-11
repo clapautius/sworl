@@ -1,0 +1,22 @@
+*** Compile project on Debian/ubuntu using quicklisp.
+
+* one time only
+
+(load #p"/usr/share/cl-quicklisp/quicklisp.lisp")
+(quicklisp-quickstart:install)
+
+* every time
+
+(load "/home/me/quicklisp/setup.lisp")
+(ql:quickload "cl-opengl")
+(require :sworl)
+
+
+*** Useful commands
+
+- detect (and fill) gaps in simulation images:
+prefix="sim-4-"; for i in $(seq 1 8900); do ii=$(printf "%05d" $i); if [ ! -e "${prefix}${ii}.png" ]; then ii1=$(printf "%05d" $((i-1))); echo "${prefix}${ii}.png missing"; echo "${prefix}${ii1}.png" "${prefix}${ii}.png" ;fi ; done
+
+- png images to video
+ffmpeg -r 300 -i sim-4-%05d.png -b 4500k -vcodec mpeg4 sim-4.mkv
+
