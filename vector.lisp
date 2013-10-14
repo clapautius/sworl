@@ -37,6 +37,20 @@ Return a vector of the same dimension."
   (vector-divide vect (vector-magnitude vect)))
 
 
+(defun vector-from-to (location1 location2 magnitude)
+  "Return a vector (as an array) from LOCATION1 to LOCATION2 having magnitude MAGNITUDE"
+  (let* (;; components of the vector (from location1 to location2)
+         (x (- (aref location2 0) (aref location1 0)))
+         (y (- (aref location2 1) (aref location1 1)))
+         (z (- (aref location2 2) (aref location1 2)))
+         (result (make-array 3 :initial-contents (list x y z))))
+    ;; normalize and then multiply with magnitude
+    ;; :fixme: optimize this
+    (vector-normalize result)
+    (vector-multiply result magnitude)
+    result))
+
+
 ;;; * emacs display settings *
 ;;; Local Variables:
 ;;; default-tab-width: 4

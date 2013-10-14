@@ -87,6 +87,14 @@
   (:documentation "Class for OpenGL window with 3D graphics"))
 
 
+(defclass u-2d-window (u-window)
+  ((grid
+    :initarg :grid
+    :initform nil
+    :accessor grid))
+  (:documentation "Class for OpenGL window with 2D graphics"))
+
+
 (defmethod glut:keyboard ((window u-window) key x y)
   (declare (ignore x y))
   (when (eql key #\Esc)
@@ -124,6 +132,13 @@
     (setf (opengl-initialized w) t)))
 
 
+(defmethod glut:display-window :before ((w u-2d-window))
+  (unless (opengl-initialized w)
+    (glut-prepare-display-common w)
+    (gl:ortho 0 (glut:width w) 0 (glut:height w) -1 1)
+    (setf (opengl-initialized w) t)))
+
+
 (defmethod glut:display-window :before ((w u-3d-window))
   (unless (opengl-initialized w)
     (let* ((u-size (preferred-size w))
@@ -140,6 +155,25 @@
                    look-at-x look-at-y look-at-z  ; look at
                    0 0 1) ; up
       (setf (opengl-initialized w) t))))
+
+
+(defgeneric sim-draw-grid (window))
+
+
+(defmethod sim-draw-grid ((w u-2d-window))
+  (when (grid w)
+    (gl:color 0.8 0.8 0.8)
+    (loop for x from 0 to (glut:width w) by (grid w) do
+         (gl:with-primitive :lines
+           (gl:vertex x 0 0) (gl:vertex x (glut:height w) 0)))
+    (loop for y from 0 to (glut:height w) by (grid w) do
+         (gl:with-primitive :lines
+           (gl:vertex 0 y 0) (gl:vertex (glut:width w) y 0)))))
+
+
+(defmethod sim-draw-grid ((w u-3d-window))
+  "No grid for 3D windows."
+  t)
 
 
 (defun sim-draw-axis (w)
@@ -163,7 +197,8 @@
        (gl:with-primitive :lines
          (gl:vertex 0 0 0) (gl:vertex u-size 0 0)
          (gl:vertex 0 0 0) (gl:vertex 0 u-size 0)
-         (gl:vertex 0 0 0) (gl:vertex 0 0 u-size))))))
+         (gl:vertex 0 0 0) (gl:vertex 0 0 u-size))))
+    (sim-draw-grid w)))
 
 
 (defun sim-draw-object (obj &optional trail)
@@ -174,16 +209,20 @@
          (size (getf (appearance obj) :size 10))
          (color (getf (appearance obj) :color '(1 0 0)))
          (trail-color (getf (appearance obj) :trail-color '(0.1 0.1 0.1))))
+    (if trail
+        (gl:color (first trail-color) (second trail-color) (third trail-color))
+        (gl:color (first color) (second color) (third color)))
     (cond
       ((eq shape :sphere)
-       (if trail
-           (gl:color (first trail-color) (second trail-color) (third trail-color))
-           (gl:color (first color) (second color) (third color)))
        (gl:push-matrix)
        (gl:translate x y z)
        ;(glu:sphere (glu:new-quadric) size 10 10)
        (glu:sphere (glu:new-quadric) size 22 22)
        (gl:pop-matrix))
+      ((eq shape :square)
+       (gl:with-primitive :lines
+         (gl:vertex (- x 2) (- y 2) 0) (gl:vertex (+ x 2) (- y 2) 0)
+         (gl:vertex (+ x 2) (+ y 2) 0) (gl:vertex (- x 2) (+ y 2) 0)))
       (t
        (error "Not implemented yet")))))
 
