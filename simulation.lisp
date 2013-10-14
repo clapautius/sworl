@@ -15,6 +15,11 @@
     :initform nil
     :accessor rules-one)
 
+   ;; rules executed after rules-pair
+   (post-rules-for-individuals
+    :initform nil
+    :accessor post-rules-one)
+
    (rules-for-pairs
     :initform nil
     :accessor rules-pair)
@@ -49,6 +54,13 @@
         (dolist (obj2 (cdr pos1))
           (dolist (rule rules)
             (funcall rule (car pos1) obj2))))))
+
+  ;; apply post rules for individual objects
+  (let ((rules (post-rules-one universe)))
+    (when rules
+      (dolist (obj (objects universe))
+        (dolist (rule rules)
+          (funcall rule obj)))))
 
   ;; update objects
   (dolist (obj (objects universe))
