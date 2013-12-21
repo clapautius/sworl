@@ -5,6 +5,7 @@
 
 Screenshots:
 
+![screenshot](https://github.com/clapautius/sworl/blob/master/doc/screenshots/screenshot-newton-1.png?raw=true)
 
 Video:
 
