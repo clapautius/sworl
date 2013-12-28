@@ -88,7 +88,7 @@
 
 (defun sim-visual-earth-satellite ()
   "Simple simulation with earth and one satellite (newtonian universe)."
-  (let* ((universe (make-newton-universe))
+  (let* ((universe (newton-make-universe))
          (earth (make-instance 'particle :mass 5.972E24))
          (satellite (make-instance 'particle :mass 1)))
     ;; set location and velocity for satellite
@@ -109,7 +109,7 @@
 
 (defun sim-visual-cube ()
   "Simple simulation with particles in a cube (newtonian universe)."
-  (let* ((universe (make-newton-universe))
+  (let* ((universe (newton-make-universe))
          (p1 (make-instance 'particle :mass 1e16
                             :location (make-array 3 :initial-contents '(0 0 0))
                             :velocity (make-array 3 :initial-contents '(10 0 0))))
@@ -143,7 +143,7 @@
 
 (defun sim-visual-1 ()
   "Simulation 1 with particles (newtonian universe)."
-  (let* ((universe (make-newton-universe)))
+  (let* ((universe (newton-make-universe)))
     (setf (txt-file-name universe) "sim-1.1.txt")
     (let ((obj (make-instance 'particle :mass 2e16
                               :location (make-array 3 :initial-contents '(-5000 0 4000))
@@ -191,7 +191,7 @@
 
 (defun sim-visual-2 ()
   "Simulation 2 with particles (newtonian universe)."
-  (let* ((universe (make-newton-universe)))
+  (let* ((universe (newton-make-universe)))
     (let ((obj (make-instance 'particle :mass 1e16
                               :location (make-array 3 :initial-contents '(3000 0 0))
                               :velocity (make-array 3 :initial-contents '(0 0 0)))))
@@ -222,7 +222,7 @@
 
 (defun sim-visual-3 ()
   "Simulation 3 with particles - atom (newtonian universe)."
-  (let* ((universe (make-newton-universe)))
+  (let* ((universe (newton-make-universe)))
     (let ((obj (make-instance 'particle :mass 1e15
                               :location (make-array 3 :initial-contents '(1000 1000 0))
                               :velocity (make-array 3 :initial-contents '(0 0 0)))))
@@ -270,7 +270,7 @@
 
 (defun sim-visual-4 ()
   "Simulation 4 with particles - atom (newtonian universe)."
-  (let* ((universe (make-newton-universe)))
+  (let* ((universe (newton-make-universe)))
     (let ((obj (make-instance 'particle :mass 1e15
                               :location (make-array 3 :initial-contents '(1000 1000 0))
                               :velocity (make-array 3 :initial-contents '(0 0 0)))))
@@ -325,3 +325,20 @@
                                         :trails nil
                                         :png-file-name "output/sim-4-"
                                         :universe universe :pause 0))))
+
+
+(defun sim-newton-visual-random ()
+  "..."
+  (let* ((universe (newton-make-random-universe :max-objects 10)))
+    (newton-set-gravity-const 1)
+    (glut:display-window (make-instance 'u-3d-window
+                                        :width 1000 :height 600
+                                        :preferred-size 20000
+                                        :camera-x-pos (* 30000 0.3)
+                                        :camera-y-pos (* 30000 0.4)
+                                        :camera-z-pos (/ 30000 4)
+                                        :look-at (list 0 0 0)
+                                        :light (list -10000 -10000 20000 1)
+                                        :theme :dark-with-floor
+                                        :trails nil
+                                        :universe universe :pause 0.001))))

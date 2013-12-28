@@ -20,3 +20,7 @@ prefix="sim-4-"; for i in $(seq 1 8900); do ii=$(printf "%05d" $i); if [ ! -e "$
 - png images to video
 ffmpeg -r 300 -i sim-4-%05d.png -b 4500k -vcodec mpeg4 sim-4.mkv
 
+*** Troubleshooting
+
+- 'component not found' when trying require / asdf:oos:
+  - symlink sworl.asd to ~/.local/share/common-lisp/source
