@@ -32,6 +32,14 @@ Return a vector of the same dimension."
     vect))
 
 
+(defun vector-add (vect1 vect2)
+  "Add vect1 and vect2. Return a new vector."
+  (let ((vect (make-array (length vect1))))
+    (dotimes (i (length vect))
+      (setf (aref vect i) (+ (aref vect1 i) (aref vect2 i))))
+    vect))
+
+
 (defun vector-normalize (vect)
   "Normalize a vector."
   (vector-divide vect (vector-magnitude vect)))
