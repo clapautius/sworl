@@ -9,6 +9,7 @@
 (require 'cl-glu)
 (require 'cl-opengl)
 (require 'zpng)
+(require 'log4cl)
 
 (asdf:defsystem :sworl
     :components ((:file "package")
@@ -26,7 +27,9 @@
                         :depends-on ("package"))
                  (:file "starling-sim"
                         :depends-on ("package"))
-                 (:file "sworl-tests"
+                 (:file "utils"
+                        :depends-on ("package"))
+                 (:file "tests/sworl-tests"
                         :depends-on ("package"))
                  (:file "ants/ants"
                         :depends-on ("package"))

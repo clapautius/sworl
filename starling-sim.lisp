@@ -8,10 +8,13 @@
 (declaim (optimize debug))
 
 
-(defparameter *starling-min-dist* 50)
+(defparameter *starling-min-dist* 625) ; 25^2 - we are using dist-fast atm
 
 (defclass starling (particle)
-  ((closest-neighbor
+  ((desired-velocity
+    :accessor desired-velocity)
+
+   (closest-neighbor
     :accessor closest-neighbor)
 
    (shortest-dist
@@ -32,15 +35,12 @@
 (defun starling-goal (obj)
   "By default, the goal of a starling is to go towards greater X coord.
 Force is max-desired-velocity - current-velocity."
-  (let* ((desired-velocity (make-array 3 :initial-contents '(1 0 0)))
-         (current-velocity (velocity obj))
-         (steering-force (vector-substract desired-velocity current-velocity)))
-    (apply-force steering-force obj)))
+  (setf (desired-velocity obj) (make-array 3 :initial-contents '(1 0 0))))
 
 
 (defun starling-interaction (starling1 starling2)
   "Attraction and rejection rules."
-  (format t ":debug: interaction between ~a and ~a~%" starling1 starling2)
+  (log:debug "interaction between ~a and ~a~%" starling1 starling2)
   ;; select the closest starling and try to get nearer
   (let ((dist (distance-3d-fast starling1 starling2)))
     (when (or (zerop (shortest-dist starling1)) (< dist (shortest-dist starling1)))
@@ -53,12 +53,23 @@ Force is max-desired-velocity - current-velocity."
 
 (defun starling-post-rule (starling)
   "Compute final direction"
+  (log:debug "starling (in post-rule): ~a~%" starling)
+
   ;; try to get closer to the nearest neighbor
-  (format t ":debug: starling (in post-rule): ~a~%" starling)
   (when (> (shortest-dist starling) *starling-min-dist*)
-    (apply-force (vector-from-to (location starling)
-                                 (location (closest-neighbor starling)) 0.5)
-                 starling))
+    ;; :fixme: optimieze - change the current vector, don't create a new one
+    (setf (desired-velocity starling)
+          (vector-add (desired-velocity starling)
+                      (vector-from-to (location starling)
+                                      (location (closest-neighbor starling)) 1))))
+
+  ;; steer
+  (vector-normalize (desired-velocity starling))
+  (let* ((current-velocity (velocity starling))
+         (steering-force (vector-substract (desired-velocity starling)
+                                           current-velocity)))
+    (apply-force steering-force starling))
+
   ;; reset starling
   (setf (closest-neighbor starling) nil)
   (setf (shortest-dist starling) 0))
@@ -91,15 +102,20 @@ Force is max-desired-velocity - current-velocity."
 
 
 (defun run-starling-2 ()
+  (log:config :debug)
   (let* ((universe (make-starling-universe))
-         (starling1 (make-instance 'starling
-                                   :location (make-array 3 :initial-contents '(0 100 0))))
-         (starling2 (make-instance 'starling
-                                   :location (make-array 3 :initial-contents '(0 200 0)))))
-    (setf (getf (appearance starling1) :shape) :square)
-    (setf (getf (appearance starling2) :shape) :square)
-    (setf (objects universe) (cons starling1 (objects universe)))
-    (setf (objects universe) (cons starling2 (objects universe)))
+         (stg1 (make-instance 'starling
+                              :location (make-array 3 :initial-contents '(0 100 0))))
+         (stg2 (make-instance 'starling
+                              :location (make-array 3 :initial-contents '(0 200 0))))
+         (stg3 (make-instance 'starling
+                              :location (make-array 3 :initial-contents '(0 300 0)))))
+    (setf (getf (appearance stg1) :shape) :square)
+    (setf (getf (appearance stg2) :shape) :square)
+    (setf (getf (appearance stg3) :shape) :square)
+    (setf (objects universe) (cons stg1 (objects universe)))
+    (setf (objects universe) (cons stg2 (objects universe)))
+    (setf (objects universe) (cons stg3 (objects universe)))
     (glut:display-window (make-instance 'u-2d-window :width 1000 :height 600
                                         :universe universe :pause 0.01
                                         :grid 50))))
